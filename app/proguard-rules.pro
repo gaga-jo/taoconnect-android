@@ -1,1 +1,1 @@
-# TaoConnect v0.2 n'active pas encore la minification.
+# TaoConnect v0.3 n'active pas encore la minification.
