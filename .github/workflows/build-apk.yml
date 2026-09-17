@@ -32,8 +32,10 @@ jobs:
           gradle-version: "8.9"
           cache-provider: basic
 
-      - name: Vérifier le SDK Android 35
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Installer le SDK Android 35
+        uses: android-actions/setup-android@v4
+        with:
+          packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Contrôler et compiler TaoConnect
         run: gradle :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
