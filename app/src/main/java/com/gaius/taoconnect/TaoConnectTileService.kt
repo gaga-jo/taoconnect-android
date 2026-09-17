@@ -1,5 +1,6 @@
 package com.gaius.taoconnect
 
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
@@ -13,6 +14,7 @@ class TaoConnectTileService : TileService() {
         refreshTile()
     }
 
+    @SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
 
