@@ -6,8 +6,8 @@ exécute les contrôles Android puis génère l’APK de test.
 
 ## Méthode automatique sous Windows — recommandée
 
-1. Décompresser entièrement `TaoConnect-v0.2-source.zip`.
-2. Ouvrir le dossier `TaoConnect-v0.2` obtenu.
+1. Décompresser entièrement `TaoConnect-v0.3-source.zip`.
+2. Ouvrir le dossier `TaoConnect-v0.3` obtenu.
 3. Double-cliquer sur `LANCER_COMPILATION_WINDOWS.bat`.
 4. Accepter l’installation de Git et/ou GitHub CLI uniquement s’ils manquent.
 5. Se connecter sur la page officielle GitHub ouverte par le script.
@@ -23,8 +23,8 @@ résultat et ouvre automatiquement le dossier contenant le fichier `.apk`.
 3. Ouvrir l’onglet **Actions** du dépôt.
 4. Choisir **Construire TaoConnect APK**.
 5. Cliquer sur **Run workflow**.
-6. Après validation, télécharger l’artifact **TaoConnect-v0.2-debug.apk**.
-7. Installer `TaoConnect-v0.2-debug.apk` sur le téléphone Android.
+6. Après validation, télécharger l’artifact **TaoConnect-v0.3-debug.apk**.
+7. Installer `TaoConnect-v0.3-debug.apk` sur le téléphone Android.
 
 Android peut demander d’autoriser l’installation depuis le navigateur ou le
 gestionnaire de fichiers utilisé. Cet APK est signé automatiquement avec une
@@ -44,7 +44,8 @@ publication sur Google Play.
 2. Ajouter le raccourci **Taobao FR** aux réglages rapides.
 3. Appuyer sur ce raccourci pour connecter TaoConnect et ouvrir Taobao.
 4. Accepter la demande Android de partage d’écran pour la session.
-5. Dans Taobao, appuyer sur la bulle `文 / FR` pour traduire.
+5. Dans Taobao, appuyer sur la bulle `文 / FR` pour activer la traduction fluide.
+6. Appuyer sur la bulle verte `AUTO / FR` pour l’arrêter.
 
 Android exige une nouvelle confirmation de partage d’écran après chaque arrêt
 du connecteur ou redémarrage du téléphone. Cette protection ne peut pas être
