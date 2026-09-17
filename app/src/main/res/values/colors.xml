@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="tao_orange">#FF5A1F</color>
+    <color name="tao_orange_dark">#D83D09</color>
+    <color name="ink">#17202A</color>
+    <color name="soft_ink">#53606E</color>
+    <color name="warm_background">#FFF8F4</color>
+    <color name="card_background">#FFFFFFFF</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="success">#147D64</color>
+    <color name="warning">#9A4E00</color>
+</resources>
