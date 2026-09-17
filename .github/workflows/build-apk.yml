@@ -41,13 +41,13 @@ jobs:
         run: gradle :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
 
       - name: Préparer le fichier installable
-        run: cp app/build/outputs/apk/debug/app-debug.apk TaoConnect-v0.2-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk TaoConnect-v0.3-debug.apk
 
       - name: Rendre l’APK téléchargeable
         uses: actions/upload-artifact@v7
         with:
-          name: TaoConnect-v0.2-APK
-          path: TaoConnect-v0.2-debug.apk
+          name: TaoConnect-v0.3-APK
+          path: TaoConnect-v0.3-debug.apk
           archive: false
           if-no-files-found: error
           retention-days: 30
