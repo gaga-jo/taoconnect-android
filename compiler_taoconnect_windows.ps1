@@ -91,7 +91,7 @@ function Ensure-Command {
 
 try {
     Write-Host "============================================================" -ForegroundColor DarkCyan
-    Write-Host " TaoConnect v0.3 - Compilation automatique de l'APK" -ForegroundColor Cyan
+    Write-Host " TaoConnect v0.4 - Compilation automatique de l'APK" -ForegroundColor Cyan
     Write-Host "============================================================" -ForegroundColor DarkCyan
 
     Ensure-Command -Name "git" -WingetId "Git.Git" -DisplayName "Git"
@@ -143,7 +143,7 @@ try {
     & git add .
     & git diff --cached --quiet
     if ($LASTEXITCODE -ne 0) {
-        & git commit -m "Build TaoConnect Android connector v0.3"
+        & git commit -m "Build TaoConnect Android connector v0.4"
         if ($LASTEXITCODE -ne 0) {
             throw "Impossible de creer le commit TaoConnect."
         }
