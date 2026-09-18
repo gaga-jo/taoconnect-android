@@ -38,16 +38,16 @@ jobs:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Contrôler et compiler TaoConnect
-        run: gradle :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
+        run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
 
       - name: Préparer le fichier installable
-        run: cp app/build/outputs/apk/debug/app-debug.apk TaoConnect-v0.3-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk TaoConnect-v0.4-debug.apk
 
       - name: Rendre l’APK téléchargeable
         uses: actions/upload-artifact@v7
         with:
-          name: TaoConnect-v0.3-APK
-          path: TaoConnect-v0.3-debug.apk
+          name: TaoConnect-v0.4-APK
+          path: TaoConnect-v0.4-debug.apk
           archive: false
           if-no-files-found: error
           retention-days: 30
