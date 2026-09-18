@@ -4,7 +4,7 @@ TaoConnect n’essaie pas de remplacer Taobao. Il s’installe comme un petit
 connecteur Android : une activation ouvre l’application Taobao, puis une bulle
 flottante traduit en français le chinois visible à l’écran.
 
-## Ce que fait la version 0.2
+## Ce que fait la version 0.3
 
 - activation unique **Connecter et ouvrir Taobao** ;
 - raccourci Android **Taobao FR** dans les réglages rapides ;
@@ -12,9 +12,10 @@ flottante traduit en français le chinois visible à l’écran.
 - bulle flottante et déplaçable `文 / FR` ;
 - reconnaissance du chinois simplifié et traditionnel ;
 - traduction chinois → français sur le téléphone après téléchargement initial ;
-- traduction depuis la bulle ou depuis la notification ;
-- affichage français à la position des textes détectés ;
-- disparition automatique des traductions après 15 secondes ;
+- mode fluide activé depuis la bulle, avec actualisation automatique après le défilement ;
+- priorité aux textes importants pour éviter de saturer l’écran ;
+- cartes françaises compactes avec placement anti-chevauchement et transitions douces ;
+- traduction ponctuelle également disponible depuis la notification ;
 - arrêt immédiat depuis TaoConnect, la notification ou le raccourci rapide ;
 - aucune sauvegarde des images capturées.
 
@@ -33,8 +34,9 @@ TaoConnect ne sert presque plus : le raccourci **Taobao FR** lance le connecteur
 3. Toucher **Connecter et ouvrir Taobao**.
 4. Autoriser l’affichage superposé et le partage d’écran Android.
 5. Attendre le message indiquant que le modèle français est prêt.
-6. Dans Taobao, toucher la bulle `文 / FR`.
-7. Après avoir fait défiler la page, toucher de nouveau la bulle.
+6. Dans Taobao, toucher la bulle `文 / FR` pour activer le mode fluide.
+7. Faire défiler normalement ; la traduction s’actualise automatiquement.
+8. Toucher la bulle verte `AUTO / FR` pour arrêter ce mode.
 
 Pour les utilisations suivantes, ouvrir les réglages rapides du téléphone et
 toucher directement **Taobao FR**.
@@ -75,9 +77,8 @@ Chaîne de traitement :
 
 - Android exige une confirmation de partage d’écran à chaque nouvelle session ;
 - seuls les éléments visibles sont traduits ;
-- la traduction doit être actualisée après le défilement ;
 - les textes très petits, stylisés ou peu contrastés peuvent être mal reconnus ;
-- les étiquettes peuvent se chevaucher sur une page très chargée ;
+- sur une page très chargée, TaoConnect privilégie les principaux blocs de texte ;
 - la conversion CNY → FCFA/euro et la traduction des messages vendeurs restent
   prévues pour une version suivante.
 

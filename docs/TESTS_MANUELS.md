@@ -1,4 +1,4 @@
-# Plan de test manuel — TaoConnect 0.2
+# Plan de test manuel — TaoConnect 0.3
 
 ## Installation et autorisations
 
@@ -16,9 +16,11 @@
 - [ ] Une fiche produit traduit le titre, les options et les principaux boutons.
 - [ ] Le texte présent dans une image produit est détecté lorsqu’il est lisible.
 - [ ] La bulle peut être déplacée sans déclencher une traduction.
-- [ ] Une pression courte déclenche une nouvelle capture.
-- [ ] Les anciennes traductions disparaissent avant la nouvelle capture.
-- [ ] Les traductions disparaissent automatiquement après environ 15 secondes.
+- [ ] Une pression courte active le mode fluide et affiche `AUTO / FR` en vert.
+- [ ] Les traductions s’actualisent automatiquement après un défilement.
+- [ ] Une seconde pression arrête le mode fluide et retire les traductions.
+- [ ] Les cartes de traduction ne se chevauchent pas sur une page chargée.
+- [ ] Les textes secondaires sont écartés avant les titres et boutons importants.
 
 ## Robustesse
 

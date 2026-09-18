@@ -63,13 +63,25 @@ class TranslationOverlayService : Service() {
 
     private var bubbleView: TextView? = null
     private var bubbleParams: WindowManager.LayoutParams? = null
+    private var bubbleBackground: GradientDrawable? = null
     private var translationView: TranslationOverlayView? = null
 
     private var screenWidth = 0
     private var screenHeight = 0
     private var screenDensity = 0
 
-    private val hideTranslationRunnable = Runnable { removeTranslationOverlay() }
+    private val hideTranslationRunnable = Runnable {
+        removeTranslationOverlay(animated = true)
+    }
+
+    private val autoRefreshRunnable = Runnable {
+        if (!autoTranslateEnabled || !isRunning) return@Runnable
+        if (isBusy) {
+            scheduleNextAutoRefresh()
+        } else {
+            requestTranslation(automatic = true, showFeedback = false)
+        }
+    }
 
     @Volatile
     private var modelReady = false
@@ -83,13 +95,24 @@ class TranslationOverlayService : Service() {
     @Volatile
     private var isBusy = false
 
+    @Volatile
+    private var autoTranslateEnabled = false
+
+    @Volatile
+    private var currentRequestAutomatic = false
+
     private val captureTimeout = Runnable {
         if (captureRequested) {
+            val automatic = currentRequestAutomatic
             captureRequested = false
             virtualDisplay?.surface = null
             showBubbleAfterCapture()
             isBusy = false
-            toast(getString(R.string.translation_failed))
+            if (automatic) {
+                scheduleNextAutoRefresh()
+            } else {
+                toast(getString(R.string.translation_failed))
+            }
         }
     }
 
@@ -240,10 +263,17 @@ class TranslationOverlayService : Service() {
                 modelPreparing = false
                 modelReady = true
                 toast(getString(R.string.model_ready))
+                if (autoTranslateEnabled && !isBusy) {
+                    mainHandler.post {
+                        requestTranslation(automatic = true, showFeedback = false)
+                    }
+                }
             }
             .addOnFailureListener {
                 modelPreparing = false
                 modelReady = false
+                autoTranslateEnabled = false
+                updateBubbleAppearance()
                 toast(getString(R.string.model_error))
             }
     }
@@ -362,17 +392,21 @@ class TranslationOverlayService : Service() {
             image.close()
         }
 
+        val automatic = currentRequestAutomatic
         mainHandler.post { showBubbleAfterCapture() }
-        recognizeAndTranslate(bitmap)
+        recognizeAndTranslate(bitmap, automatic)
     }
 
-    private fun requestTranslation() {
+    private fun requestTranslation(
+        automatic: Boolean = false,
+        showFeedback: Boolean = !automatic
+    ) {
         if (isBusy) {
-            toast(getString(R.string.capture_in_progress))
+            if (showFeedback) toast(getString(R.string.capture_in_progress))
             return
         }
         if (!modelReady) {
-            toast(getString(R.string.model_downloading))
+            if (showFeedback) toast(getString(R.string.model_downloading))
             prepareTranslationModel()
             return
         }
@@ -383,14 +417,20 @@ class TranslationOverlayService : Service() {
 
         refreshCaptureSizeIfNeeded()
         isBusy = true
-        toast(getString(R.string.capture_in_progress))
-        removeTranslationOverlay()
+        currentRequestAutomatic = automatic
+        if (showFeedback) toast(getString(R.string.capture_in_progress))
+        removeTranslationOverlay(animated = true)
         bubbleView?.visibility = View.INVISIBLE
 
         mainHandler.postDelayed({
-            captureRequested = true
-            virtualDisplay?.surface = imageReader?.surface
-            mainHandler.postDelayed(captureTimeout, CAPTURE_TIMEOUT_MS)
+            if (automatic && !autoTranslateEnabled) {
+                isBusy = false
+                showBubbleAfterCapture()
+            } else {
+                captureRequested = true
+                virtualDisplay?.surface = imageReader?.surface
+                mainHandler.postDelayed(captureTimeout, CAPTURE_TIMEOUT_MS)
+            }
         }, OVERLAY_HIDE_DELAY_MS)
     }
 
@@ -398,35 +438,58 @@ class TranslationOverlayService : Service() {
         bubbleView?.visibility = View.VISIBLE
     }
 
-    private fun recognizeAndTranslate(bitmap: Bitmap) {
+    private fun recognizeAndTranslate(bitmap: Bitmap, automatic: Boolean) {
         val inputImage = InputImage.fromBitmap(bitmap, 0)
         recognizer.process(inputImage)
             .addOnSuccessListener { result ->
                 bitmap.recycle()
-                val sourceBlocks = result.textBlocks.mapNotNull { block ->
-                    val bounds = block.boundingBox ?: return@mapNotNull null
-                    val text = block.text.trim()
-                    if (text.isBlank() || !CHINESE_REGEX.containsMatchIn(text)) {
-                        return@mapNotNull null
+                val sourceBlocks = result.textBlocks
+                    .mapNotNull { block ->
+                        val bounds = block.boundingBox ?: return@mapNotNull null
+                        val text = WHITESPACE_REGEX.replace(block.text.trim(), " ")
+                        val chineseCharacterCount = CHINESE_REGEX.findAll(text).count()
+                        if (text.isBlank() || chineseCharacterCount < MIN_CHINESE_CHARACTERS) {
+                            return@mapNotNull null
+                        }
+                        val area = bounds.width().coerceAtLeast(1) *
+                            bounds.height().coerceAtLeast(1)
+                        SourceBlock(
+                            bounds = Rect(bounds),
+                            text = text.take(MAX_SOURCE_TEXT_LENGTH),
+                            priority = chineseCharacterCount * 1_000 + area.coerceAtMost(100_000) / 100
+                        )
                     }
-                    SourceBlock(Rect(bounds), text)
-                }.take(MAX_TRANSLATED_BLOCKS)
+                    .distinctBy { it.text }
+                    .sortedByDescending { it.priority }
+                    .take(MAX_TRANSLATED_BLOCKS)
+                    .sortedWith(
+                        compareBy<SourceBlock> { it.bounds.top }
+                            .thenBy { it.bounds.left }
+                    )
 
                 if (sourceBlocks.isEmpty()) {
                     isBusy = false
-                    toast(getString(R.string.nothing_found))
+                    if (automatic) {
+                        scheduleNextAutoRefresh()
+                    } else {
+                        toast(getString(R.string.nothing_found))
+                    }
                 } else {
-                    translateBlocks(sourceBlocks)
+                    translateBlocks(sourceBlocks, automatic)
                 }
             }
             .addOnFailureListener {
                 bitmap.recycle()
                 isBusy = false
-                toast(getString(R.string.translation_failed))
+                if (automatic) {
+                    scheduleNextAutoRefresh()
+                } else {
+                    toast(getString(R.string.translation_failed))
+                }
             }
     }
 
-    private fun translateBlocks(blocks: List<SourceBlock>) {
+    private fun translateBlocks(blocks: List<SourceBlock>, automatic: Boolean) {
         val remaining = AtomicInteger(blocks.size)
         val translatedItems = Collections.synchronizedList(
             mutableListOf<TranslationItem>()
@@ -442,14 +505,25 @@ class TranslationOverlayService : Service() {
                 .addOnCompleteListener {
                     if (remaining.decrementAndGet() == 0) {
                         isBusy = false
-                        val sortedItems = translatedItems.sortedWith(
-                            compareBy<TranslationItem> { it.sourceBounds.top }
-                                .thenBy { it.sourceBounds.left }
-                        )
+                        if (automatic && !autoTranslateEnabled) {
+                            return@addOnCompleteListener
+                        }
+                        val sortedItems = translatedItems
+                            .distinctBy { it.translatedText.lowercase().trim() }
+                            .sortedWith(
+                                compareBy<TranslationItem> { it.sourceBounds.top }
+                                    .thenBy { it.sourceBounds.left }
+                            )
                         if (sortedItems.isEmpty()) {
-                            toast(getString(R.string.translation_failed))
+                            if (!automatic) toast(getString(R.string.translation_failed))
+                            if (automatic) scheduleNextAutoRefresh()
                         } else {
-                            mainHandler.post { showTranslations(sortedItems) }
+                            mainHandler.post {
+                                if (!automatic || autoTranslateEnabled) {
+                                    showTranslations(sortedItems)
+                                    if (automatic) scheduleNextAutoRefresh()
+                                }
+                            }
                         }
                     }
                 }
@@ -478,11 +552,51 @@ class TranslationOverlayService : Service() {
         try {
             windowManager.addView(overlay, params)
             translationView = overlay
-            mainHandler.postDelayed(hideTranslationRunnable, TRANSLATION_VISIBLE_MS)
+            if (!autoTranslateEnabled) {
+                mainHandler.postDelayed(hideTranslationRunnable, TRANSLATION_VISIBLE_MS)
+            }
         } catch (_: Exception) {
             translationView = null
             toast(getString(R.string.translation_failed))
         }
+    }
+
+    private fun toggleAutoTranslation() {
+        autoTranslateEnabled = !autoTranslateEnabled
+        mainHandler.removeCallbacks(autoRefreshRunnable)
+        updateBubbleAppearance()
+
+        if (autoTranslateEnabled) {
+            toast(getString(R.string.smooth_mode_started))
+            requestTranslation(automatic = true, showFeedback = false)
+        } else {
+            removeTranslationOverlay(animated = true)
+            toast(getString(R.string.smooth_mode_stopped))
+        }
+    }
+
+    private fun scheduleNextAutoRefresh() {
+        mainHandler.removeCallbacks(autoRefreshRunnable)
+        if (autoTranslateEnabled && isRunning) {
+            mainHandler.postDelayed(autoRefreshRunnable, AUTO_REFRESH_INTERVAL_MS)
+        }
+    }
+
+    private fun updateBubbleAppearance() {
+        bubbleView?.apply {
+            text = if (autoTranslateEnabled) "AUTO\nFR" else "文\nFR"
+            textSize = if (autoTranslateEnabled) 12f else 15f
+            contentDescription = getString(
+                if (autoTranslateEnabled) {
+                    R.string.bubble_stop_description
+                } else {
+                    R.string.bubble_start_description
+                }
+            )
+        }
+        bubbleBackground?.setColor(
+            getColor(if (autoTranslateEnabled) R.color.success else R.color.tao_orange)
+        )
     }
 
     private fun showBubble() {
@@ -494,6 +608,7 @@ class TranslationOverlayService : Service() {
             setColor(getColor(R.color.tao_orange))
             setStroke(dp(3), 0xFFFFFFFF.toInt())
         }
+        bubbleBackground = backgroundShape
 
         val bubble = TextView(this).apply {
             text = "文\nFR"
@@ -503,7 +618,7 @@ class TranslationOverlayService : Service() {
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             background = backgroundShape
             elevation = dp(8).toFloat()
-            contentDescription = "Traduire l’écran chinois en français"
+            contentDescription = getString(R.string.bubble_start_description)
         }
 
         val params = WindowManager.LayoutParams(
@@ -525,6 +640,7 @@ class TranslationOverlayService : Service() {
             windowManager.addView(bubble, params)
             bubbleView = bubble
             bubbleParams = params
+            updateBubbleAppearance()
         } catch (_: Exception) {
             stopSelf()
         }
@@ -571,7 +687,7 @@ class TranslationOverlayService : Service() {
                     }
 
                     MotionEvent.ACTION_UP -> {
-                        if (!moved) requestTranslation()
+                        if (!moved) toggleAutoTranslation()
                         return true
                     }
                 }
@@ -609,16 +725,28 @@ class TranslationOverlayService : Service() {
         return cropped
     }
 
-    private fun removeTranslationOverlay() {
+    private fun removeTranslationOverlay(animated: Boolean = false) {
         mainHandler.removeCallbacks(hideTranslationRunnable)
-        translationView?.let { view ->
+        val view = translationView ?: return
+        translationView = null
+
+        val removeView = Runnable {
             try {
                 windowManager.removeView(view)
             } catch (_: Exception) {
                 // Vue déjà retirée par Android.
             }
         }
-        translationView = null
+
+        if (animated && view.isAttachedToWindow) {
+            view.animate()
+                .alpha(0f)
+                .setDuration(FADE_OUT_DURATION_MS)
+                .withEndAction(removeView)
+                .start()
+        } else {
+            removeView.run()
+        }
     }
 
     private fun removeBubble() {
@@ -631,6 +759,7 @@ class TranslationOverlayService : Service() {
         }
         bubbleView = null
         bubbleParams = null
+        bubbleBackground = null
     }
 
     private fun releaseProjection() {
@@ -669,8 +798,10 @@ class TranslationOverlayService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        autoTranslateEnabled = false
         requestTileRefresh()
         isBusy = false
+        mainHandler.removeCallbacks(autoRefreshRunnable)
         removeTranslationOverlay()
         removeBubble()
         releaseProjection()
@@ -682,7 +813,8 @@ class TranslationOverlayService : Service() {
 
     private data class SourceBlock(
         val bounds: Rect,
-        val text: String
+        val text: String,
+        val priority: Int
     )
 
     companion object {
@@ -694,12 +826,17 @@ class TranslationOverlayService : Service() {
 
         private const val NOTIFICATION_CHANNEL = "taoconnect_translation"
         private const val NOTIFICATION_ID = 1208
-        private const val OVERLAY_HIDE_DELAY_MS = 280L
+        private const val OVERLAY_HIDE_DELAY_MS = 180L
         private const val CAPTURE_TIMEOUT_MS = 2_500L
-        private const val TRANSLATION_VISIBLE_MS = 15_000L
-        private const val MAX_TRANSLATED_BLOCKS = 40
+        private const val TRANSLATION_VISIBLE_MS = 8_000L
+        private const val AUTO_REFRESH_INTERVAL_MS = 1_800L
+        private const val FADE_OUT_DURATION_MS = 120L
+        private const val MAX_TRANSLATED_BLOCKS = 14
+        private const val MIN_CHINESE_CHARACTERS = 2
+        private const val MAX_SOURCE_TEXT_LENGTH = 140
 
         private val CHINESE_REGEX = Regex("[\\u3400-\\u9FFF\\uF900-\\uFAFF]")
+        private val WHITESPACE_REGEX = Regex("\\s+")
 
         @Volatile
         var isRunning: Boolean = false

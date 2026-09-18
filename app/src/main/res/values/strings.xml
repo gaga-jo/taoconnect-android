@@ -19,9 +19,9 @@
     <string name="how_it_works">Comment l’utiliser</string>
     <string name="step_one">1. Activez la bulle et acceptez le partage d’écran.</string>
     <string name="step_two">2. Ouvrez Taobao et placez la page à traduire à l’écran.</string>
-    <string name="step_three">3. Touchez la bulle « 文→FR ». Touchez-la encore après avoir défilé.</string>
+    <string name="step_three">3. Touchez la bulle « 文→FR » pour activer le mode fluide. La traduction suivra la page ; touchez « AUTO FR » pour l’arrêter.</string>
     <string name="translation_notification_title">Connecteur Taobao actif</string>
-    <string name="translation_notification_text">Touchez la bulle sur Taobao pour traduire l’écran.</string>
+    <string name="translation_notification_text">Touchez la bulle sur Taobao pour activer la traduction fluide.</string>
     <string name="model_downloading">Premier démarrage : préparation du français…</string>
     <string name="model_ready">Traduction prête. Ouvrez Taobao.</string>
     <string name="model_error">Impossible de préparer le modèle de traduction. Vérifiez Internet.</string>
@@ -30,4 +30,8 @@
     <string name="translation_failed">La traduction a échoué. Réessayez.</string>
     <string name="overlay_permission_explanation">Autorisez « Afficher par-dessus les autres applications », puis revenez dans TaoConnect.</string>
     <string name="translate_now">Traduire</string>
+    <string name="smooth_mode_started">Mode fluide activé : la traduction suit maintenant la page.</string>
+    <string name="smooth_mode_stopped">Mode fluide arrêté.</string>
+    <string name="bubble_start_description">Activer la traduction fluide chinois-français</string>
+    <string name="bubble_stop_description">Arrêter la traduction fluide</string>
 </resources>
