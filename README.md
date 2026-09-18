@@ -4,7 +4,7 @@ TaoConnect n’essaie pas de remplacer Taobao. Il s’installe comme un petit
 connecteur Android : une activation ouvre l’application Taobao, puis une bulle
 flottante traduit en français le chinois visible à l’écran.
 
-## Ce que fait la version 0.3
+## Ce que fait la version 0.4
 
 - activation unique **Connecter et ouvrir Taobao** ;
 - raccourci Android **Taobao FR** dans les réglages rapides ;
@@ -12,9 +12,17 @@ flottante traduit en français le chinois visible à l’écran.
 - bulle flottante et déplaçable `文 / FR` ;
 - reconnaissance du chinois simplifié et traditionnel ;
 - traduction chinois → français sur le téléphone après téléchargement initial ;
-- mode fluide activé depuis la bulle, avec actualisation automatique après le défilement ;
-- priorité aux textes importants pour éviter de saturer l’écran ;
-- cartes françaises compactes avec placement anti-chevauchement et transitions douces ;
+- glossaire français concis pour les commandes Taobao les plus fréquentes ;
+- mode fluide activé depuis la bulle, avec actualisation adaptative après le défilement ;
+- conservation de la traduction précédente pendant la préparation de la suivante ;
+- cache en mémoire des traductions déjà obtenues et détection tolérante des écrans inchangés ;
+- priorité aux boutons, actions et textes courts pour éviter de saturer l’écran ;
+- détection des fenêtres centrales afin d’ignorer leur arrière-plan ;
+- remplacement intégré pour les boutons et libellés courts, adapté à la couleur d’origine ;
+- petites légendes reliées à leur source pour les phrases longues, sans couvrir les autres textes ;
+- protection des prix, nombres, URL et références techniques ;
+- six traductions prioritaires au maximum et zone réservée autour de la bulle ;
+- superposition transparente sous la limite Android afin de laisser passer les gestes vers Taobao ;
 - traduction ponctuelle également disponible depuis la notification ;
 - arrêt immédiat depuis TaoConnect, la notification ou le raccourci rapide ;
 - aucune sauvegarde des images capturées.
@@ -45,6 +53,7 @@ toucher directement **Taobao FR**.
 
 - les captures restent en mémoire vive et sont supprimées après analyse ;
 - aucune capture n’est enregistrée dans la galerie ;
+- la sauvegarde Android des données de TaoConnect est désactivée ;
 - TaoConnect ne demande jamais les identifiants Taobao ni les coordonnées
   bancaires ;
 - il faut arrêter le connecteur avant de saisir un mot de passe, un code de
@@ -66,7 +75,9 @@ Les instructions détaillées se trouvent dans `docs/OBTENIR_APK.md`.
 - `MainActivity.kt` : configuration initiale et autorisations ;
 - `TaoConnectTileService.kt` : raccourci Android **Taobao FR** ;
 - `TranslationOverlayService.kt` : capture, OCR, traduction et bulle ;
+- `TranslationTextPolicy.kt` : glossaire Taobao et protection des valeurs sensibles ;
 - `TranslationOverlayView.kt` : rendu des étiquettes françaises ;
+- `TranslationTextPolicyTest.kt` : tests des règles de traduction ;
 - `.github/workflows/build-apk.yml` : contrôles et fabrication de l’APK.
 
 Chaîne de traitement :
