@@ -9,6 +9,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
@@ -25,6 +26,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
 import android.service.quicksettings.TileService
+import android.util.LruCache
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -42,6 +44,7 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.chinese.ChineseTextRecognizerOptions
 import java.util.Collections
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.max
@@ -65,6 +68,16 @@ class TranslationOverlayService : Service() {
     private var bubbleParams: WindowManager.LayoutParams? = null
     private var bubbleBackground: GradientDrawable? = null
     private var translationView: TranslationOverlayView? = null
+    private var currentTranslations: List<TranslationItem> = emptyList()
+    private var lastContentSignature: String? = null
+    private var lastSourceBlocks: List<SourceBlock> = emptyList()
+    private var consecutiveEmptyResults = 0
+    private var translationTimeoutRunnable: Runnable? = null
+    private var lastScanDetectedChange = true
+
+    private val translationCache = LruCache<String, String>(
+        MAX_TRANSLATION_CACHE_ENTRIES
+    )
 
     private var screenWidth = 0
     private var screenHeight = 0
@@ -106,7 +119,8 @@ class TranslationOverlayService : Service() {
             val automatic = currentRequestAutomatic
             captureRequested = false
             virtualDisplay?.surface = null
-            showBubbleAfterCapture()
+            restoreViewsAfterCapture()
+            markOverlayFresh()
             isBusy = false
             if (automatic) {
                 scheduleNextAutoRefresh()
@@ -386,14 +400,29 @@ class TranslationOverlayService : Service() {
         mainHandler.removeCallbacks(captureTimeout)
         virtualDisplay?.surface = null
 
+        val automatic = currentRequestAutomatic
+        mainHandler.post { restoreViewsAfterCapture() }
         val bitmap = try {
             imageToBitmap(image)
+        } catch (_: Exception) {
+            null
         } finally {
             image.close()
         }
 
-        val automatic = currentRequestAutomatic
-        mainHandler.post { showBubbleAfterCapture() }
+        if (bitmap == null) {
+            isBusy = false
+            mainHandler.post {
+                markOverlayFresh()
+                if (automatic) {
+                    scheduleNextAutoRefresh()
+                } else {
+                    toast(getString(R.string.translation_failed))
+                }
+            }
+            return
+        }
+
         recognizeAndTranslate(bitmap, automatic)
     }
 
@@ -419,13 +448,12 @@ class TranslationOverlayService : Service() {
         isBusy = true
         currentRequestAutomatic = automatic
         if (showFeedback) toast(getString(R.string.capture_in_progress))
-        removeTranslationOverlay(animated = true)
-        bubbleView?.visibility = View.INVISIBLE
+        prepareViewsForCapture()
 
         mainHandler.postDelayed({
             if (automatic && !autoTranslateEnabled) {
                 isBusy = false
-                showBubbleAfterCapture()
+                restoreViewsAfterCapture()
             } else {
                 captureRequested = true
                 virtualDisplay?.surface = imageReader?.surface
@@ -434,107 +462,474 @@ class TranslationOverlayService : Service() {
         }, OVERLAY_HIDE_DELAY_MS)
     }
 
-    private fun showBubbleAfterCapture() {
+    private fun prepareViewsForCapture() {
+        mainHandler.removeCallbacks(hideTranslationRunnable)
+        translationView?.apply {
+            animate().cancel()
+            alpha = 0f
+        }
+        bubbleView?.visibility = View.INVISIBLE
+    }
+
+    private fun restoreViewsAfterCapture() {
         bubbleView?.visibility = View.VISIBLE
+        translationView?.apply {
+            visibility = View.VISIBLE
+            animate().cancel()
+            alpha = STALE_OVERLAY_ALPHA
+        }
+    }
+
+    private fun markOverlayFresh() {
+        translationView?.apply {
+            visibility = View.VISIBLE
+            animate().cancel()
+            animate()
+                .alpha(1f)
+                .setDuration(OVERLAY_SWAP_DURATION_MS)
+                .start()
+        }
     }
 
     private fun recognizeAndTranslate(bitmap: Bitmap, automatic: Boolean) {
+        val focusRegion = detectModalFocusRegion(bitmap)
         val inputImage = InputImage.fromBitmap(bitmap, 0)
         recognizer.process(inputImage)
             .addOnSuccessListener { result ->
-                bitmap.recycle()
-                val sourceBlocks = result.textBlocks
-                    .mapNotNull { block ->
-                        val bounds = block.boundingBox ?: return@mapNotNull null
-                        val text = WHITESPACE_REGEX.replace(block.text.trim(), " ")
-                        val chineseCharacterCount = CHINESE_REGEX.findAll(text).count()
-                        if (text.isBlank() || chineseCharacterCount < MIN_CHINESE_CHARACTERS) {
-                            return@mapNotNull null
+                val sourceBlocks = try {
+                    result.textBlocks
+                        .flatMap { it.lines }
+                        .mapNotNull { line ->
+                            val bounds = line.boundingBox ?: return@mapNotNull null
+                            if (
+                                focusRegion != null &&
+                                !focusRegion.contains(bounds.centerX(), bounds.centerY())
+                            ) {
+                                return@mapNotNull null
+                            }
+                            val text = TranslationTextPolicy.normalizeSource(line.text)
+                            if (!TranslationTextPolicy.shouldTranslate(text)) {
+                                return@mapNotNull null
+                            }
+                            val backgroundColor = sampleBackgroundColor(bitmap, bounds)
+                            SourceBlock(
+                                bounds = Rect(bounds),
+                                text = text.take(MAX_SOURCE_TEXT_LENGTH),
+                                priority = translationPriority(
+                                    text = text,
+                                    bounds = bounds,
+                                    modalFocused = focusRegion != null
+                                ),
+                                backgroundColor = backgroundColor,
+                                foregroundColor = readableTextColor(backgroundColor)
+                            )
                         }
-                        val area = bounds.width().coerceAtLeast(1) *
-                            bounds.height().coerceAtLeast(1)
-                        SourceBlock(
-                            bounds = Rect(bounds),
-                            text = text.take(MAX_SOURCE_TEXT_LENGTH),
-                            priority = chineseCharacterCount * 1_000 + area.coerceAtMost(100_000) / 100
+                        .distinctBy { TranslationTextPolicy.cacheKey(it.text) }
+                        .sortedByDescending { it.priority }
+                        .take(MAX_TRANSLATED_BLOCKS)
+                        .sortedWith(
+                            compareBy<SourceBlock> { it.bounds.top }
+                                .thenBy { it.bounds.left }
                         )
-                    }
-                    .distinctBy { it.text }
-                    .sortedByDescending { it.priority }
-                    .take(MAX_TRANSLATED_BLOCKS)
-                    .sortedWith(
-                        compareBy<SourceBlock> { it.bounds.top }
-                            .thenBy { it.bounds.left }
-                    )
+                } catch (_: Exception) {
+                    emptyList()
+                } finally {
+                    bitmap.recycle()
+                }
 
                 if (sourceBlocks.isEmpty()) {
+                    consecutiveEmptyResults += 1
                     isBusy = false
-                    if (automatic) {
-                        scheduleNextAutoRefresh()
-                    } else {
-                        toast(getString(R.string.nothing_found))
+                    mainHandler.post {
+                        if (consecutiveEmptyResults >= EMPTY_RESULTS_BEFORE_CLEAR) {
+                            lastContentSignature = null
+                            lastSourceBlocks = emptyList()
+                            removeTranslationOverlay(animated = true)
+                        } else {
+                            markOverlayFresh()
+                        }
+                        if (automatic) {
+                            scheduleNextAutoRefresh()
+                        } else {
+                            toast(getString(R.string.nothing_found))
+                        }
                     }
                 } else {
-                    translateBlocks(sourceBlocks, automatic)
+                    consecutiveEmptyResults = 0
+                    val signature = contentSignature(sourceBlocks)
+                    if (
+                        (
+                            signature == lastContentSignature ||
+                                isEquivalentContent(sourceBlocks, lastSourceBlocks)
+                            ) &&
+                        currentTranslations.isNotEmpty()
+                    ) {
+                        lastScanDetectedChange = false
+                        isBusy = false
+                        mainHandler.post {
+                            markOverlayFresh()
+                            if (automatic) scheduleNextAutoRefresh()
+                        }
+                    } else {
+                        lastScanDetectedChange = true
+                        translateBlocks(sourceBlocks, signature, automatic)
+                    }
                 }
             }
             .addOnFailureListener {
                 bitmap.recycle()
                 isBusy = false
-                if (automatic) {
-                    scheduleNextAutoRefresh()
-                } else {
-                    toast(getString(R.string.translation_failed))
+                mainHandler.post {
+                    markOverlayFresh()
+                    if (automatic) {
+                        scheduleNextAutoRefresh()
+                    } else {
+                        toast(getString(R.string.translation_failed))
+                    }
                 }
             }
     }
 
-    private fun translateBlocks(blocks: List<SourceBlock>, automatic: Boolean) {
-        val remaining = AtomicInteger(blocks.size)
+    private fun translationPriority(
+        text: String,
+        bounds: Rect,
+        modalFocused: Boolean
+    ): Int {
+        val chineseCharacterCount = TranslationTextPolicy.chineseCharacterCount(text)
+        val compactTextScore = when {
+            chineseCharacterCount <= 8 -> 12_000
+            chineseCharacterCount <= 18 -> 8_000
+            chineseCharacterCount <= 32 -> 4_000
+            else -> 800
+        }
+        val actionScore = if (TranslationTextPolicy.isAction(text)) {
+            ACTION_PRIORITY_BONUS
+        } else {
+            0
+        }
+        val knownLabelScore = if (TranslationTextPolicy.localTranslation(text) != null) {
+            KNOWN_LABEL_PRIORITY_BONUS
+        } else {
+            0
+        }
+        val modalScore = if (modalFocused) MODAL_PRIORITY_BONUS else 0
+        val areaScore = (
+            bounds.width().coerceAtLeast(1) *
+                bounds.height().coerceAtLeast(1)
+            ).coerceAtMost(120_000) / 120
+
+        return actionScore + knownLabelScore + compactTextScore + modalScore + areaScore
+    }
+
+    private fun contentSignature(blocks: List<SourceBlock>): String =
+        blocks.joinToString(separator = "|") { block ->
+            val bounds = block.bounds
+            buildString {
+                append(TranslationTextPolicy.cacheKey(block.text))
+                append('@')
+                append(bounds.left / SIGNATURE_GRID_SIZE)
+                append(',')
+                append(bounds.top / SIGNATURE_GRID_SIZE)
+                append(',')
+                append(bounds.right / SIGNATURE_GRID_SIZE)
+                append(',')
+                append(bounds.bottom / SIGNATURE_GRID_SIZE)
+            }
+        }
+
+    private fun isEquivalentContent(
+        newBlocks: List<SourceBlock>,
+        previousBlocks: List<SourceBlock>
+    ): Boolean {
+        if (newBlocks.isEmpty() || newBlocks.size != previousBlocks.size) return false
+
+        val newGroups = newBlocks.groupBy { TranslationTextPolicy.cacheKey(it.text) }
+        val previousGroups = previousBlocks.groupBy { TranslationTextPolicy.cacheKey(it.text) }
+        if (newGroups.keys != previousGroups.keys) return false
+
+        val positionTolerance = dp(CONTENT_POSITION_TOLERANCE_DP)
+        val sizeTolerance = dp(CONTENT_SIZE_TOLERANCE_DP)
+
+        return newGroups.all { (key, currentGroup) ->
+            val oldGroup = previousGroups[key] ?: return@all false
+            if (currentGroup.size != oldGroup.size) return@all false
+
+            val currentSorted = currentGroup.sortedWith(
+                compareBy<SourceBlock> { it.bounds.top }.thenBy { it.bounds.left }
+            )
+            val oldSorted = oldGroup.sortedWith(
+                compareBy<SourceBlock> { it.bounds.top }.thenBy { it.bounds.left }
+            )
+
+            currentSorted.zip(oldSorted).all { (current, old) ->
+                abs(current.bounds.centerX() - old.bounds.centerX()) <= positionTolerance &&
+                    abs(current.bounds.centerY() - old.bounds.centerY()) <= positionTolerance &&
+                    abs(current.bounds.width() - old.bounds.width()) <= sizeTolerance &&
+                    abs(current.bounds.height() - old.bounds.height()) <= sizeTolerance
+            }
+        }
+    }
+
+    private fun sampleBackgroundColor(bitmap: Bitmap, sourceBounds: Rect): Int {
+        val left = sourceBounds.left.coerceIn(0, bitmap.width - 1)
+        val top = sourceBounds.top.coerceIn(0, bitmap.height - 1)
+        val right = sourceBounds.right.coerceIn(left + 1, bitmap.width)
+        val bottom = sourceBounds.bottom.coerceIn(top + 1, bitmap.height)
+        val insetX = max(1, (right - left) / 10)
+        val insetY = max(1, (bottom - top) / 6)
+        val centerX = (left + right) / 2
+        val centerY = (top + bottom) / 2
+        val points = listOf(
+            left + insetX to top + insetY,
+            centerX to top + insetY,
+            right - insetX - 1 to top + insetY,
+            left + insetX to centerY,
+            right - insetX - 1 to centerY,
+            left + insetX to bottom - insetY - 1,
+            centerX to bottom - insetY - 1,
+            right - insetX - 1 to bottom - insetY - 1
+        )
+
+        var red = 0L
+        var green = 0L
+        var blue = 0L
+        points.forEach { (x, y) ->
+            val pixel = bitmap.getPixel(
+                x.coerceIn(0, bitmap.width - 1),
+                y.coerceIn(0, bitmap.height - 1)
+            )
+            red += Color.red(pixel)
+            green += Color.green(pixel)
+            blue += Color.blue(pixel)
+        }
+
+        return Color.rgb(
+            (red / points.size).toInt(),
+            (green / points.size).toInt(),
+            (blue / points.size).toInt()
+        )
+    }
+
+    private fun readableTextColor(backgroundColor: Int): Int {
+        val luminance = (
+            Color.red(backgroundColor) * 77 +
+                Color.green(backgroundColor) * 150 +
+                Color.blue(backgroundColor) * 29
+            ) shr 8
+        return if (luminance >= 148) Color.rgb(35, 38, 42) else Color.WHITE
+    }
+
+    private fun detectModalFocusRegion(bitmap: Bitmap): Rect? {
+        val width = bitmap.width
+        val height = bitmap.height
+        if (width < 100 || height < 100) return null
+
+        val center = Rect(
+            width * 10 / 100,
+            height * 18 / 100,
+            width * 90 / 100,
+            height * 82 / 100
+        )
+        val edgeRegions = listOf(
+            Rect(0, height * 12 / 100, width * 8 / 100, height * 88 / 100),
+            Rect(width * 92 / 100, height * 12 / 100, width, height * 88 / 100),
+            Rect(width * 10 / 100, height * 8 / 100, width * 90 / 100, height * 17 / 100),
+            Rect(width * 10 / 100, height * 83 / 100, width * 90 / 100, height * 92 / 100)
+        )
+
+        val centerLuminance = averageLuminance(bitmap, center)
+        val edgeLuminance = edgeRegions
+            .map { averageLuminance(bitmap, it) }
+            .average()
+
+        return if (
+            centerLuminance >= MIN_MODAL_LUMINANCE &&
+            centerLuminance - edgeLuminance >= MIN_MODAL_LUMINANCE_GAP
+        ) {
+            center
+        } else {
+            null
+        }
+    }
+
+    private fun averageLuminance(bitmap: Bitmap, region: Rect): Double {
+        val step = (
+            minOf(region.width(), region.height()) / LUMINANCE_SAMPLE_DIVISOR
+            ).coerceIn(MIN_LUMINANCE_SAMPLE_STEP, MAX_LUMINANCE_SAMPLE_STEP)
+        var total = 0L
+        var count = 0
+        var y = region.top
+
+        while (y < region.bottom) {
+            var x = region.left
+            while (x < region.right) {
+                val pixel = bitmap.getPixel(x, y)
+                val red = pixel shr 16 and 0xFF
+                val green = pixel shr 8 and 0xFF
+                val blue = pixel and 0xFF
+                total += (red * 77 + green * 150 + blue * 29) shr 8
+                count += 1
+                x += step
+            }
+            y += step
+        }
+
+        return if (count == 0) 0.0 else total.toDouble() / count.toDouble()
+    }
+
+    private fun translateBlocks(
+        blocks: List<SourceBlock>,
+        contentSignature: String,
+        automatic: Boolean
+    ) {
         val translatedItems = Collections.synchronizedList(
             mutableListOf<TranslationItem>()
         )
+        val uncachedBlocks = mutableListOf<SourceBlock>()
 
         blocks.forEach { block ->
+            val localTranslation = TranslationTextPolicy.localTranslation(block.text)
+            val cached = synchronized(translationCache) {
+                translationCache.get(TranslationTextPolicy.cacheKey(block.text))
+            }
+            val readyTranslation = localTranslation ?: cached
+            if (readyTranslation != null) {
+                TranslationTextPolicy.cleanTranslation(block.text, readyTranslation)
+                    ?.let { translated ->
+                        translatedItems += block.toTranslationItem(translated)
+                    }
+                return@forEach
+            }
+            uncachedBlocks += block
+        }
+
+        if (uncachedBlocks.isEmpty()) {
+            finishTranslation(
+                translatedItems = translatedItems,
+                sourceBlocks = blocks,
+                contentSignature = contentSignature,
+                automatic = automatic
+            )
+            return
+        }
+
+        val remaining = AtomicInteger(uncachedBlocks.size)
+        val batchFinished = AtomicBoolean(false)
+        fun completeBatchOnce() {
+            if (!batchFinished.compareAndSet(false, true)) return
+            translationTimeoutRunnable?.let { pending ->
+                mainHandler.removeCallbacks(pending)
+            }
+            translationTimeoutRunnable = null
+            finishTranslation(
+                translatedItems = translatedItems,
+                sourceBlocks = blocks,
+                contentSignature = contentSignature,
+                automatic = automatic
+            )
+        }
+
+        val timeout = Runnable { completeBatchOnce() }
+        translationTimeoutRunnable = timeout
+        mainHandler.postDelayed(timeout, TRANSLATION_BATCH_TIMEOUT_MS)
+
+        uncachedBlocks.forEach { block ->
             translator.translate(block.text)
                 .addOnSuccessListener { translated ->
-                    if (translated.isNotBlank()) {
-                        translatedItems += TranslationItem(block.bounds, translated.trim())
+                    TranslationTextPolicy.cleanTranslation(block.text, translated)
+                        ?.let { cleanedTranslation ->
+                        synchronized(translationCache) {
+                            translationCache.put(
+                                TranslationTextPolicy.cacheKey(block.text),
+                                cleanedTranslation
+                            )
+                        }
+                        translatedItems += block.toTranslationItem(cleanedTranslation)
                     }
                 }
                 .addOnCompleteListener {
                     if (remaining.decrementAndGet() == 0) {
-                        isBusy = false
-                        if (automatic && !autoTranslateEnabled) {
-                            return@addOnCompleteListener
-                        }
-                        val sortedItems = translatedItems
-                            .distinctBy { it.translatedText.lowercase().trim() }
-                            .sortedWith(
-                                compareBy<TranslationItem> { it.sourceBounds.top }
-                                    .thenBy { it.sourceBounds.left }
-                            )
-                        if (sortedItems.isEmpty()) {
-                            if (!automatic) toast(getString(R.string.translation_failed))
-                            if (automatic) scheduleNextAutoRefresh()
-                        } else {
-                            mainHandler.post {
-                                if (!automatic || autoTranslateEnabled) {
-                                    showTranslations(sortedItems)
-                                    if (automatic) scheduleNextAutoRefresh()
-                                }
-                            }
-                        }
+                        completeBatchOnce()
                     }
                 }
         }
     }
 
+    private fun SourceBlock.toTranslationItem(translatedText: String): TranslationItem =
+        TranslationItem(
+            sourceBounds = Rect(bounds),
+            translatedText = translatedText,
+            presentation = if (
+                TranslationTextPolicy.shouldUseInlinePresentation(text, translatedText)
+            ) {
+                TranslationPresentation.INLINE
+            } else {
+                TranslationPresentation.CALLOUT
+            },
+            backgroundColor = backgroundColor,
+            foregroundColor = foregroundColor,
+            priority = priority
+        )
+
+    private fun finishTranslation(
+        translatedItems: MutableList<TranslationItem>,
+        sourceBlocks: List<SourceBlock>,
+        contentSignature: String,
+        automatic: Boolean
+    ) {
+        isBusy = false
+        if (automatic && !autoTranslateEnabled) return
+
+        val sortedItems = synchronized(translatedItems) {
+            translatedItems
+                .distinctBy { item ->
+                    val bounds = item.sourceBounds
+                    "${item.translatedText.lowercase().trim()}@${bounds.centerX() / 24},${bounds.centerY() / 24}"
+                }
+                .sortedWith(
+                    compareByDescending<TranslationItem> { it.priority }
+                        .thenBy { it.sourceBounds.top }
+                        .thenBy { it.sourceBounds.left }
+                )
+        }
+
+        mainHandler.post {
+            if (automatic && !autoTranslateEnabled) return@post
+            if (sortedItems.isEmpty()) {
+                markOverlayFresh()
+                if (!automatic) toast(getString(R.string.translation_failed))
+            } else {
+                lastContentSignature = contentSignature
+                lastSourceBlocks = sourceBlocks.map { block ->
+                    block.copy(bounds = Rect(block.bounds))
+                }
+                showTranslations(sortedItems)
+            }
+            if (automatic) scheduleNextAutoRefresh()
+        }
+    }
+
     private fun showTranslations(items: List<TranslationItem>) {
-        removeTranslationOverlay()
+        mainHandler.removeCallbacks(hideTranslationRunnable)
+        currentTranslations = items
+        val avoidanceAreas = bubbleAvoidanceAreas()
+
+        translationView?.let { overlay ->
+            overlay.setTranslations(items, screenWidth, screenHeight, avoidanceAreas)
+            overlay.visibility = View.VISIBLE
+            overlay.animate().cancel()
+            overlay.animate()
+                .alpha(1f)
+                .setDuration(OVERLAY_SWAP_DURATION_MS)
+                .start()
+            if (!autoTranslateEnabled) {
+                mainHandler.postDelayed(hideTranslationRunnable, TRANSLATION_VISIBLE_MS)
+            }
+            return
+        }
 
         val overlay = TranslationOverlayView(this).apply {
-            setTranslations(items, screenWidth, screenHeight)
+            setTranslations(items, screenWidth, screenHeight, avoidanceAreas)
         }
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT,
@@ -547,6 +942,7 @@ class TranslationOverlayService : Service() {
             PixelFormat.TRANSLUCENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
+            alpha = TOUCH_THROUGH_WINDOW_ALPHA
         }
 
         try {
@@ -557,8 +953,32 @@ class TranslationOverlayService : Service() {
             }
         } catch (_: Exception) {
             translationView = null
+            currentTranslations = emptyList()
             toast(getString(R.string.translation_failed))
         }
+    }
+
+    private fun bubbleAvoidanceAreas(): List<Rect> {
+        val params = bubbleParams ?: return emptyList()
+        val padding = dp(BUBBLE_AVOIDANCE_PADDING_DP)
+        return listOf(
+            Rect(
+                (params.x - padding).coerceAtLeast(0),
+                (params.y - padding).coerceAtLeast(0),
+                (params.x + params.width + padding).coerceAtMost(screenWidth),
+                (params.y + params.height + padding).coerceAtMost(screenHeight)
+            )
+        )
+    }
+
+    private fun refreshOverlayAvoidance() {
+        if (currentTranslations.isEmpty()) return
+        translationView?.setTranslations(
+            currentTranslations,
+            screenWidth,
+            screenHeight,
+            bubbleAvoidanceAreas()
+        )
     }
 
     private fun toggleAutoTranslation() {
@@ -567,6 +987,7 @@ class TranslationOverlayService : Service() {
         updateBubbleAppearance()
 
         if (autoTranslateEnabled) {
+            lastScanDetectedChange = true
             toast(getString(R.string.smooth_mode_started))
             requestTranslation(automatic = true, showFeedback = false)
         } else {
@@ -578,14 +999,19 @@ class TranslationOverlayService : Service() {
     private fun scheduleNextAutoRefresh() {
         mainHandler.removeCallbacks(autoRefreshRunnable)
         if (autoTranslateEnabled && isRunning) {
-            mainHandler.postDelayed(autoRefreshRunnable, AUTO_REFRESH_INTERVAL_MS)
+            val delay = if (lastScanDetectedChange) {
+                AUTO_REFRESH_MOVING_INTERVAL_MS
+            } else {
+                AUTO_REFRESH_STILL_INTERVAL_MS
+            }
+            mainHandler.postDelayed(autoRefreshRunnable, delay)
         }
     }
 
     private fun updateBubbleAppearance() {
         bubbleView?.apply {
             text = if (autoTranslateEnabled) "AUTO\nFR" else "文\nFR"
-            textSize = if (autoTranslateEnabled) 12f else 15f
+            textSize = if (autoTranslateEnabled) 10.5f else 13f
             contentDescription = getString(
                 if (autoTranslateEnabled) {
                     R.string.bubble_stop_description
@@ -602,7 +1028,7 @@ class TranslationOverlayService : Service() {
     private fun showBubble() {
         if (bubbleView != null) return
 
-        val size = dp(64)
+        val size = dp(BUBBLE_SIZE_DP)
         val backgroundShape = GradientDrawable().apply {
             shape = GradientDrawable.OVAL
             setColor(getColor(R.color.tao_orange))
@@ -614,7 +1040,7 @@ class TranslationOverlayService : Service() {
             text = "文\nFR"
             gravity = Gravity.CENTER
             setTextColor(0xFFFFFFFF.toInt())
-            textSize = 15f
+            textSize = 13f
             setTypeface(typeface, android.graphics.Typeface.BOLD)
             background = backgroundShape
             elevation = dp(8).toFloat()
@@ -687,7 +1113,22 @@ class TranslationOverlayService : Service() {
                     }
 
                     MotionEvent.ACTION_UP -> {
-                        if (!moved) toggleAutoTranslation()
+                        if (!moved) {
+                            toggleAutoTranslation()
+                        } else {
+                            val edgePadding = dp(BUBBLE_EDGE_PADDING_DP)
+                            params.x = if (params.x + params.width / 2 < screenWidth / 2) {
+                                edgePadding
+                            } else {
+                                max(edgePadding, screenWidth - params.width - edgePadding)
+                            }
+                            try {
+                                windowManager.updateViewLayout(bubble, params)
+                            } catch (_: Exception) {
+                                // Le service peut être arrêté à la fin du geste.
+                            }
+                            refreshOverlayAvoidance()
+                        }
                         return true
                     }
                 }
@@ -727,6 +1168,7 @@ class TranslationOverlayService : Service() {
 
     private fun removeTranslationOverlay(animated: Boolean = false) {
         mainHandler.removeCallbacks(hideTranslationRunnable)
+        currentTranslations = emptyList()
         val view = translationView ?: return
         translationView = null
 
@@ -802,11 +1244,18 @@ class TranslationOverlayService : Service() {
         requestTileRefresh()
         isBusy = false
         mainHandler.removeCallbacks(autoRefreshRunnable)
+        translationTimeoutRunnable?.let { pending ->
+            mainHandler.removeCallbacks(pending)
+        }
+        translationTimeoutRunnable = null
         removeTranslationOverlay()
         removeBubble()
         releaseProjection()
         recognizer.close()
         translator.close()
+        synchronized(translationCache) {
+            translationCache.evictAll()
+        }
         captureThread.quitSafely()
         super.onDestroy()
     }
@@ -814,7 +1263,9 @@ class TranslationOverlayService : Service() {
     private data class SourceBlock(
         val bounds: Rect,
         val text: String,
-        val priority: Int
+        val priority: Int,
+        val backgroundColor: Int,
+        val foregroundColor: Int
     )
 
     companion object {
@@ -826,17 +1277,34 @@ class TranslationOverlayService : Service() {
 
         private const val NOTIFICATION_CHANNEL = "taoconnect_translation"
         private const val NOTIFICATION_ID = 1208
-        private const val OVERLAY_HIDE_DELAY_MS = 180L
+        private const val OVERLAY_HIDE_DELAY_MS = 48L
         private const val CAPTURE_TIMEOUT_MS = 2_500L
-        private const val TRANSLATION_VISIBLE_MS = 8_000L
-        private const val AUTO_REFRESH_INTERVAL_MS = 1_800L
+        private const val TRANSLATION_BATCH_TIMEOUT_MS = 6_000L
+        private const val TRANSLATION_VISIBLE_MS = 30_000L
+        private const val AUTO_REFRESH_MOVING_INTERVAL_MS = 900L
+        private const val AUTO_REFRESH_STILL_INTERVAL_MS = 1_500L
         private const val FADE_OUT_DURATION_MS = 120L
-        private const val MAX_TRANSLATED_BLOCKS = 14
-        private const val MIN_CHINESE_CHARACTERS = 2
-        private const val MAX_SOURCE_TEXT_LENGTH = 140
-
-        private val CHINESE_REGEX = Regex("[\\u3400-\\u9FFF\\uF900-\\uFAFF]")
-        private val WHITESPACE_REGEX = Regex("\\s+")
+        private const val OVERLAY_SWAP_DURATION_MS = 140L
+        private const val STALE_OVERLAY_ALPHA = 1f
+        private const val MAX_TRANSLATED_BLOCKS = 8
+        private const val MAX_SOURCE_TEXT_LENGTH = 90
+        private const val MAX_TRANSLATION_CACHE_ENTRIES = 256
+        private const val EMPTY_RESULTS_BEFORE_CLEAR = 2
+        private const val SIGNATURE_GRID_SIZE = 24
+        private const val ACTION_PRIORITY_BONUS = 20_000
+        private const val KNOWN_LABEL_PRIORITY_BONUS = 12_000
+        private const val MODAL_PRIORITY_BONUS = 10_000
+        private const val LUMINANCE_SAMPLE_DIVISOR = 20
+        private const val MIN_LUMINANCE_SAMPLE_STEP = 6
+        private const val MAX_LUMINANCE_SAMPLE_STEP = 24
+        private const val MIN_MODAL_LUMINANCE = 135.0
+        private const val MIN_MODAL_LUMINANCE_GAP = 45.0
+        private const val CONTENT_POSITION_TOLERANCE_DP = 10
+        private const val CONTENT_SIZE_TOLERANCE_DP = 8
+        private const val BUBBLE_SIZE_DP = 56
+        private const val BUBBLE_EDGE_PADDING_DP = 8
+        private const val BUBBLE_AVOIDANCE_PADDING_DP = 6
+        private const val TOUCH_THROUGH_WINDOW_ALPHA = 0.79f
 
         @Volatile
         var isRunning: Boolean = false

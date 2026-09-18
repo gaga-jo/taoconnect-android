@@ -11,8 +11,8 @@ android {
         applicationId = "com.gaius.taoconnect"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 4
+        versionName = "0.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -47,4 +47,6 @@ dependencies {
 
     // Traduction chinois -> francais sur l'appareil apres telechargement des modeles.
     implementation("com.google.mlkit:translate:17.0.3")
+
+    testImplementation("junit:junit:4.13.2")
 }
