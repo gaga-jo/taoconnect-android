@@ -68,6 +68,8 @@ class BilingualBrowserTest {
             assertEquals("1", js(scenario, "window.buyCount"))
             js(scenario, "document.querySelector('#changing').textContent='查看物流';document.querySelector('#changing').scrollIntoView()")
             until(scenario, "document.querySelector('#changing [data-tao-fr]')?.textContent === 'Suivre la livraison'")
+            js(scenario, "document.querySelector('#changing').firstChild.nodeValue='AB-903LU'")
+            until(scenario, "!document.querySelector('#changing [data-tao-fr]')")
             js(scenario, "document.querySelector('#changing').firstChild.nodeValue='退款'")
             until(scenario, "document.querySelector('#changing [data-tao-fr]')?.textContent === 'Remboursement'")
             js(scenario, "document.querySelector('#modalButton').click()")
