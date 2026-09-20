@@ -3,7 +3,7 @@ package com.gaius.taoconnect
 /**
  * Règles de texte indépendantes d'Android.
  *
- * Elles gardent le service de capture concentré sur l'OCR et empêchent une
+ * Elles isolent les décisions linguistiques du navigateur et empêchent une
  * traduction automatique approximative de modifier un prix, une référence ou
  * un nombre important. Les libellés Taobao les plus courants sont volontairement
  * courts afin de tenir dans les boutons d'origine.
@@ -64,7 +64,7 @@ internal object TranslationTextPolicy {
         "浏览模式" to "Mode navigation",
         "退出浏览模式" to "Quitter le mode navigation",
         "继续浏览" to "Continuer la navigation",
-        "同意协议并退出浏览模式" to "Accepter et quitter",
+        "同意协议并退出浏览模式" to "Accepter les conditions et quitter le mode navigation",
         "请输入手机号" to "Numéro de téléphone",
         "请输入手机号码" to "Numéro de téléphone",
         "请输入验证码" to "Code de vérification",
@@ -125,7 +125,27 @@ internal object TranslationTextPolicy {
         "评价" to "Avis",
         "问大家" to "Questions",
         "已选" to "Sélectionné",
-        "库存" to "Stock"
+        "库存" to "Stock",
+        "黑色" to "Noir",
+        "白色" to "Blanc",
+        "蓝色" to "Bleu",
+        "红色" to "Rouge",
+        "绿色" to "Vert",
+        "黄色" to "Jaune",
+        "灰色" to "Gris",
+        "粉色" to "Rose",
+        "米色" to "Beige",
+        "均码" to "Taille unique",
+        "纯棉" to "Coton",
+        "材质" to "Matière",
+        "配送" to "Livraison",
+        "发货地" to "Lieu d’expédition",
+        "退货" to "Retour du produit",
+        "退款" to "Remboursement",
+        "优惠券" to "Coupon de réduction",
+        "商品评价" to "Avis sur le produit",
+        "更多" to "Voir plus",
+        "七天无理由退货" to "Retour sous 7 jours sans motif"
     ).mapKeys { (source, _) -> canonical(source) }
 
     private val actionKeywords = listOf(
@@ -185,6 +205,7 @@ internal object TranslationTextPolicy {
             .trim()
 
         if (candidate.isBlank()) return null
+        if (chineseCharacterCount(candidate) > 0) return null
         if (!preservesNumbers(source, candidate)) return null
         if (!preservesIdentifiers(source, candidate)) return null
 
