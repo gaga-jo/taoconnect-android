@@ -231,6 +231,13 @@
       if (!el || el.closest(NOTE)) continue;
       if (mutation.type === 'attributes' && mutation.attributeName === 'style' && records.get(el)?.styles.size) continue;
       if (mutation.type === 'childList' && [...mutation.addedNodes, ...mutation.removedNodes].every(node => node.nodeType === 1 && node.matches(NOTE))) continue;
+      // Also invalidate Chinese -> price/Latin changes, which a Han-only scan would miss.
+      for (let parent = el, depth = 0; parent && depth < 8; parent = parent.parentElement, depth++) {
+        const record = records.get(parent);
+        if (record && record.source !== sourceOf(parent)) {
+          removeNote(record); intersection.unobserve(parent); records.delete(parent);
+        }
+      }
       schedule(el);
     }
   });
