@@ -14,7 +14,7 @@ jobs:
   build:
     name: Vérifier et compiler l’APK
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
       - name: Récupérer le projet
@@ -38,16 +38,45 @@ jobs:
           packages: "platform-tools platforms;android-35 build-tools;35.0.0"
 
       - name: Contrôler et compiler TaoConnect
-        run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug --no-daemon --stacktrace
+        run: gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug :app:assembleDebugAndroidTest --no-daemon --stacktrace
+
+      - name: Autoriser l’accélération de l’émulateur
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Tester le vrai navigateur et le traducteur sur Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: pixel_3a
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash ci/android-tests.sh
+
+      - name: Conserver les résultats et les captures
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TaoConnect-v0.5-test-evidence
+          path: |
+            test-evidence/
+            app/build/reports/
+            app/build/outputs/androidTest-results/
+          if-no-files-found: warn
+          retention-days: 30
 
       - name: Préparer le fichier installable
-        run: cp app/build/outputs/apk/debug/app-debug.apk TaoConnect-v0.4-debug.apk
+        run: cp app/build/outputs/apk/debug/app-debug.apk TaoConnect-v0.5-debug.apk
 
       - name: Rendre l’APK téléchargeable
         uses: actions/upload-artifact@v7
         with:
-          name: TaoConnect-v0.4-APK
-          path: TaoConnect-v0.4-debug.apk
+          name: TaoConnect-v0.5-APK
+          path: TaoConnect-v0.5-debug.apk
           archive: false
           if-no-files-found: error
           retention-days: 30
