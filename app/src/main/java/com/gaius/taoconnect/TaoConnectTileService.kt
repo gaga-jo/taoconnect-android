@@ -8,55 +8,26 @@ import android.service.quicksettings.Tile
 import android.service.quicksettings.TileService
 
 class TaoConnectTileService : TileService() {
-
     override fun onStartListening() {
         super.onStartListening()
-        refreshTile()
+        qsTile?.apply {
+            label = getString(R.string.tile_label)
+            state = Tile.STATE_INACTIVE
+            updateTile()
+        }
     }
 
     @SuppressLint("StartActivityAndCollapseDeprecated")
     override fun onClick() {
         super.onClick()
-
-        if (TranslationOverlayService.isRunning) {
-            stopService(Intent(this, TranslationOverlayService::class.java))
-            qsTile?.state = Tile.STATE_INACTIVE
-            qsTile?.updateTile()
-            return
-        }
-
-        val connectIntent = Intent(this, MainActivity::class.java).apply {
-            putExtra(MainActivity.EXTRA_AUTO_CONNECT, true)
-            addFlags(
-                Intent.FLAG_ACTIVITY_NEW_TASK or
-                    Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                    Intent.FLAG_ACTIVITY_SINGLE_TOP
-            )
-        }
-
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            val pendingIntent = PendingIntent.getActivity(
-                this,
-                21,
-                connectIntent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-            )
-            startActivityAndCollapse(pendingIntent)
+        val intent = Intent(this, TaobaoBrowserActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        if (Build.VERSION.SDK_INT >= 34) {
+            startActivityAndCollapse(PendingIntent.getActivity(this, 21, intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE))
         } else {
             @Suppress("DEPRECATION")
-            startActivityAndCollapse(connectIntent)
-        }
-    }
-
-    private fun refreshTile() {
-        qsTile?.apply {
-            label = getString(R.string.tile_label)
-            state = if (TranslationOverlayService.isRunning) {
-                Tile.STATE_ACTIVE
-            } else {
-                Tile.STATE_INACTIVE
-            }
-            updateTile()
+            startActivityAndCollapse(intent)
         }
     }
 }
