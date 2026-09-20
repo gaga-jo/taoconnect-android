@@ -1,37 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="bilingual_headline">Taobao,\navec le français.</string>
+    <string name="bilingual_intro">Le chinois reste en place. Sa traduction apparaît dessous et défile avec la page.</string>
+    <string name="bilingual_example">Exemple du mode bilingue</string>
+    <string name="open_bilingual">Ouvrir Taobao en bilingue</string>
+    <string name="bilingual_scope">Uniquement Taobao dans cette fenêtre. Aucune capture d’écran, aucune bulle sur vos autres applications.</string>
+    <string name="bilingual_limits">Google Traduction sur votre appareil, après téléchargement des modèles. Les textes intégrés aux images ne sont pas traduits. Certaines fonctions Taobao peuvent exiger son application officielle.</string>
+    <string name="bilingual_active">Chinois + français · Google Traduction</string>
+    <string name="browser_back">Revenir à la page précédente</string>
+    <string name="browser_menu">Options de navigation</string>
+    <string name="toggle_bilingual">Activer ou masquer le français</string>
     <string name="app_name">TaoConnect</string>
-    <string name="tagline">Le connecteur français pour Taobao</string>
-    <string name="intro">TaoConnect n’est pas une boutique séparée : il se connecte visuellement à Taobao et traduit le chinois affiché sur votre écran.</string>
-    <string name="start_translation">Connecter et ouvrir Taobao</string>
-    <string name="stop_translation">Déconnecter TaoConnect</string>
-    <string name="open_taobao">Ouvrir Taobao</string>
-    <string name="add_quick_tile">Ajouter le raccourci « Taobao FR »</string>
     <string name="tile_label">Taobao FR</string>
-    <string name="tile_added">Le raccourci Taobao FR est prêt.</string>
-    <string name="tile_help">Ouvrez les réglages rapides Android, puis ajoutez la tuile « Taobao FR ».</string>
-    <string name="permission_ready">Autorisation d’affichage : prête</string>
-    <string name="permission_missing">Autorisation d’affichage : nécessaire</string>
-    <string name="status_idle">Le connecteur est déconnecté.</string>
-    <string name="status_starting">Préparation de la traduction…</string>
-    <string name="status_active">Connecteur actif : Taobao peut maintenant être traduit.</string>
-    <string name="privacy_note">Confidentialité : la capture reste sur le téléphone. TaoConnect masque sa traduction avant chaque lecture et ne doit pas être utilisé sur les écrans de connexion ou de paiement.</string>
-    <string name="how_it_works">Comment l’utiliser</string>
-    <string name="step_one">1. Activez la bulle et acceptez le partage d’écran.</string>
-    <string name="step_two">2. Ouvrez Taobao et placez la page à traduire à l’écran.</string>
-    <string name="step_three">3. Touchez la bulle « 文→FR » pour activer le mode fluide. La traduction suivra la page ; touchez « AUTO FR » pour l’arrêter.</string>
-    <string name="translation_notification_title">Connecteur Taobao actif</string>
-    <string name="translation_notification_text">Touchez la bulle sur Taobao pour activer la traduction fluide.</string>
-    <string name="model_downloading">Premier démarrage : préparation du français…</string>
-    <string name="model_ready">Traduction prête. Ouvrez Taobao.</string>
-    <string name="model_error">Impossible de préparer le modèle de traduction. Vérifiez Internet.</string>
-    <string name="capture_in_progress">Lecture du chinois…</string>
-    <string name="nothing_found">Aucun texte chinois lisible n’a été trouvé.</string>
-    <string name="translation_failed">La traduction a échoué. Réessayez.</string>
-    <string name="overlay_permission_explanation">Autorisez « Afficher par-dessus les autres applications », puis revenez dans TaoConnect.</string>
-    <string name="translate_now">Traduire</string>
-    <string name="smooth_mode_started">Mode fluide activé : la traduction suit maintenant la page.</string>
-    <string name="smooth_mode_stopped">Mode fluide arrêté.</string>
-    <string name="bubble_start_description">Activer la traduction fluide chinois-français</string>
-    <string name="bubble_stop_description">Arrêter la traduction fluide</string>
 </resources>
