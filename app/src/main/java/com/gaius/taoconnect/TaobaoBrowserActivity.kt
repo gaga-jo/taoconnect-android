@@ -199,8 +199,8 @@ class TaobaoBrowserActivity : AppCompatActivity() {
             translator.translate(texts.optString(index)) { translated ->
                 results[index] = translated
                 remaining--
-                if (remaining == 0 && requestEpoch == epoch && enabled && !isDestroyed) {
-                    val json = JSONObject().put("id", id).put("translations",
+                if (requestEpoch == epoch && enabled && !isDestroyed) {
+                    val json = JSONObject().put("id", id).put("partial", remaining > 0).put("translations",
                         JSONArray().also { a -> results.forEach { a.put(it ?: JSONObject.NULL) } })
                     runCatching { reply.postMessage(json.toString()) }
                 }
