@@ -1,54 +1,29 @@
-# Plan de test manuel — TaoConnect 0.4
+# Validation v0.5
 
-## Installation et autorisations
+## Diagnostic de la v0.4
 
-- [ ] L’application démarre sans fermeture inattendue.
-- [ ] Le bouton d’activation ouvre le bon écran d’autorisation superposée.
-- [ ] Le refus du partage d’écran ne démarre pas le service.
-- [ ] L’acceptation affiche la notification et la bulle `文 / FR`.
-- [ ] Le bouton d’arrêt retire immédiatement la bulle et la notification.
-- [ ] Le raccourci « Taobao FR » ouvre la demande de connexion puis Taobao.
-- [ ] Une seconde pression sur le raccourci arrête le connecteur actif.
+| Décision | Motif |
+|---|---|
+| À conserver | Projet Android, traduction locale, glossaire, cache, contrôles des nombres et références, compilation GitHub |
+| À corriger immédiatement | La capture OCR ne permet pas d’insérer une traduction sous le chinois ni de suivre exactement le défilement ; le service global peut apparaître sur d’autres applications |
+| À améliorer | Qualité du glossaire, textes dynamiques, stabilité visuelle et gestion des erreurs de modèle |
+| À supprimer | Service et vue de superposition, capture, permissions correspondantes, dépendance OCR et anciens messages d’activation |
+| À ajouter plus tard | Adaptateurs aux mises en page Taobao réelles, traduction à la demande, exclusions configurables, éventuellement fournisseur serveur sécurisé si la qualité locale est insuffisante |
 
-## Traduction Taobao
+## Tests automatiques
 
-- [ ] Une page de résultats Taobao affiche des traductions françaises.
-- [ ] Une fiche produit traduit le titre, les options et les principaux boutons.
-- [ ] Le texte présent dans une image produit est détecté lorsqu’il est lisible.
-- [ ] La bulle peut être déplacée sans déclencher une traduction.
-- [ ] Une pression courte active le mode fluide et affiche `AUTO / FR` en vert.
-- [ ] Les traductions s’actualisent automatiquement après un défilement.
-- [ ] La traduction précédente reste visible pendant la préparation de la suivante.
-- [ ] Un écran inchangé ne provoque ni disparition ni remplacement inutile.
-- [ ] Un texte déjà rencontré réapparaît rapidement grâce au cache local.
-- [ ] Une seconde pression arrête le mode fluide et retire les traductions.
-- [ ] Les cartes de traduction ne se chevauchent pas sur une page chargée.
-- [ ] Les boutons courts semblent remplacés sur place et conservent un contraste lisible.
-- [ ] Les phrases longues apparaissent près de leur source sans recouvrir une autre zone OCR.
-- [ ] Six traductions au maximum sont visibles simultanément.
-- [ ] Aucun prix, nombre, URL ou identifiant produit n’est masqué ou modifié.
-- [ ] La bulle se fixe au bord après déplacement et aucune traduction ne passe dessous.
-- [ ] Les boutons et le défilement Taobao restent tactiles sous les traductions.
-- [ ] Une fenêtre modale ouverte masque les traductions de l’arrière-plan.
-- [ ] Sur la connexion, les traductions ne recouvrent pas les principaux contrôles.
-- [ ] Les textes secondaires sont écartés avant les titres et boutons importants.
+- Tests JVM : domaines Taobao, domaines trompeurs, HTTPS, ports, URL avec identifiants, refus des prix/URL/références, fidélité des nombres et références, glossaire.
+- Tests instrumentés Android : chinois préservé, prix et références inchangés, champs exclus, français situé sous le chinois, défilement synchronisé, clic sur la traduction d’un bouton, modification dynamique, fenêtre modale, contenu plus bas dans la page, absence de doublons et de requêtes répétées, désactivation et réactivation.
+- Permissions du paquet : aucune capture, superposition, accessibilité ou lecture de toutes les applications.
+- Vraie traduction ML Kit hors glossaire : phrase sur une chemise en coton, modèle réellement téléchargé, résultat enregistré dans les preuves.
+- Captures Android : haut de page bilingue, fenêtre, après défilement et traduction machine.
 
-## Robustesse
+Ces tests tournent sur une **page de contrôle locale**, pas sur une copie présentée comme le vrai Taobao. Leur résultat est celui du workflow associé au commit livré. Ils ne constituent pas une certification de traduction ni un audit de sécurité externe.
 
-- [ ] Rotation portrait/paysage sans fermeture inattendue.
-- [ ] Verrouillage de l’écran : la session de capture s’arrête proprement.
-- [ ] Perte de réseau après téléchargement des modèles : traduction toujours possible.
-- [ ] Écran sans texte chinois : message « Aucun texte chinois ».
-- [ ] Arrêt depuis la notification : toutes les fenêtres disparaissent.
+## Validation réelle restant nécessaire
 
-## Appareils prioritaires
+L’accès automatisé à Taobao était bloqué dans l’environnement de développement. Il faut donc vérifier sur téléphone : accueil public, recherche, fiche produit, variantes, fenêtre de consentement, connexion officielle, panier et retour arrière, sans passer commande pour tester.
 
-Tester au minimum :
+Sur chaque page : contrôler le sens, la conservation du chinois, les images/prix, le défilement rapide, les boutons, le contenu qui charge ensuite, la fermeture des fenêtres, le comportement hors connexion et le masquage du français. Les paiements et CAPTCHA ne sont pas considérés validés.
 
-- Android 13 ;
-- Android 14 ou 15 ;
-- écran 720p ;
-- écran 1080p avec encoche ou poinçon.
-
-Noter pour chaque anomalie : modèle du téléphone, version Android, capture de
-l’écran Taobao concerné et position de la traduction attendue.
+Passer ensuite dans une autre application : aucun élément Tao Connect ne doit apparaître. Les liens Tmall/1688/autres domaines restent hors du navigateur bilingue.
