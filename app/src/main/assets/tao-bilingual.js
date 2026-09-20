@@ -127,19 +127,21 @@
     const entries = Array.from(waiting.entries()).slice(0, 12);
     entries.forEach(([text]) => waiting.delete(text));
     const id = generation+':'+(++serial), texts = entries.map(([text]) => text);
-    const request = {entries, generation, timer: setTimeout(() => settle(id, []), 120000)};
+    const request = {entries, generation, done:new Set(), timer: setTimeout(() => settle(id, []), 300000)};
     requests.set(id, request); sent++;
     try { window.TaoNative.postMessage(JSON.stringify({type:'translate', id, texts})); }
     catch (_) { settle(id, []); }
     if (waiting.size) scheduleBatch();
   }
 
-  function settle(id, translations) {
+  function settle(id, translations, partial = false) {
     const request = requests.get(id);
     if (!request) return;
-    clearTimeout(request.timer); requests.delete(id);
+    if (!partial) { clearTimeout(request.timer); requests.delete(id); }
     request.entries.forEach(([source, owners], index) => {
       const result = typeof translations[index] === 'string' ? translations[index] : null;
+      if (request.done.has(index) || (partial && !result)) return;
+      request.done.add(index);
       if (result) remember(source, result);
       owners.forEach(record => {
         record.queued = false;
@@ -153,7 +155,7 @@
   }
 
   window.TaoNative.onmessage = event => {
-    try { const data = JSON.parse(event.data); if (Array.isArray(data.translations)) settle(data.id, data.translations); }
+    try { const data = JSON.parse(event.data); if (Array.isArray(data.translations)) settle(data.id, data.translations, data.partial === true); }
     catch (_) { /* Ignore malformed replies. Original text remains visible. */ }
   };
 
