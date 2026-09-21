@@ -1,8 +1,9 @@
 package com.gaius.taoconnect
 
 import android.content.Intent
-import android.graphics.Bitmap
 import android.os.SystemClock
+import android.os.ParcelFileDescriptor
+import android.util.Log
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import androidx.test.ext.junit.runners.AndroidJUnit4
@@ -11,7 +12,6 @@ import org.json.JSONTokener
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
-import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -46,11 +46,12 @@ class BilingualBrowserTest {
 
     private fun capture(name: String) {
         val instrumentation = InstrumentationRegistry.getInstrumentation()
-        val directory = File(instrumentation.targetContext.getExternalFilesDir(null), "test-evidence").apply { mkdirs() }
-        instrumentation.uiAutomation.takeScreenshot().let { bitmap ->
-            File(directory, "$name.png").outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-            bitmap.recycle()
-        }
+        val output = "/sdcard/Pictures/TaoConnect-$name.png"
+        // The test APK is removed after connectedDebugAndroidTest. A shell screenshot in
+        // Pictures survives that uninstall and can therefore be collected by CI.
+        ParcelFileDescriptor.AutoCloseInputStream(
+            instrumentation.uiAutomation.executeShellCommand("screencap -p $output")
+        ).use { stream -> while (stream.read() != -1) Unit }
     }
 
     @Test fun originalTextInteractionsScrollAndDynamicContentStayTogether() {
@@ -98,8 +99,7 @@ class BilingualBrowserTest {
             assertTrue("Expected French cotton/shirt meaning, got: $translated", translated.contains("coton", true) && translated.contains("chemise", true))
             assertEquals("true", js(scenario, "document.querySelector('#machine').firstChild.nodeValue==='这件衬衫是纯棉的'"))
             capture("04-real-translation")
-            val directory = File(InstrumentationRegistry.getInstrumentation().targetContext.getExternalFilesDir(null), "test-evidence")
-            File(directory, "translation.txt").writeText("Source: 这件衬衫是纯棉的\nGoogle ML Kit, appareil Android: $translated\n")
+            Log.i("TaoConnectTest", "Source: 这件衬衫是纯棉的 | Google ML Kit, appareil Android: $translated")
         }
     }
 
