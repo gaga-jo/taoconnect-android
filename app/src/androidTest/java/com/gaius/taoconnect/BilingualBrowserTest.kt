@@ -49,6 +49,8 @@ class BilingualBrowserTest {
         val output = "/sdcard/Pictures/TaoConnect-$name.png"
         // The test APK is removed after connectedDebugAndroidTest. A shell screenshot in
         // Pictures survives that uninstall and can therefore be collected by CI.
+        instrumentation.waitForIdleSync()
+        SystemClock.sleep(250)
         ParcelFileDescriptor.AutoCloseInputStream(
             instrumentation.uiAutomation.executeShellCommand("screencap -p $output")
         ).use { stream -> while (stream.read() != -1) Unit }
@@ -77,7 +79,7 @@ class BilingualBrowserTest {
             until(scenario, "!!document.querySelector('dialog [data-tao-fr]')")
             capture("02-modal")
             js(scenario, "document.querySelector('dialog').close();document.querySelector('#last').scrollIntoView()")
-            until(scenario, "document.querySelector('#last [data-tao-fr]')?.textContent === 'Confirmer la réception'")
+            until(scenario, "(() => {const d=document.querySelector('dialog'),n=document.querySelector('#last [data-tao-fr]');if(d.open||n?.textContent!=='Confirmer la réception')return false;const r=n.getBoundingClientRect();return r.top>=0&&r.bottom<=innerHeight;})()")
             capture("03-after-scroll")
             val batchCount = js(scenario, "window.__taoConnect.stats().batches")
             SystemClock.sleep(1400)
@@ -106,7 +108,7 @@ class BilingualBrowserTest {
     @Test fun appCannotOverlayOrCaptureOtherApplications() {
         val context = ApplicationProvider.getApplicationContext<android.content.Context>()
         @Suppress("DEPRECATION")
-        val permissions = context.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
+        val permissions = contex.packageManager.getPackageInfo(context.packageName, android.content.pm.PackageManager.GET_PERMISSIONS).requestedPermissions.orEmpty()
         assertFalse(permissions.contains("android.permission.SYSTEM_ALERT_WINDOW"))
         assertFalse(permissions.contains("android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"))
         assertFalse(permissions.contains("android.permission.BIND_ACCESSIBILITY_SERVICE"))
