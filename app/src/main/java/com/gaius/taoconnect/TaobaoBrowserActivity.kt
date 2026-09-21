@@ -85,7 +85,7 @@ class TaobaoBrowserActivity : AppCompatActivity() {
         }
     }
 
-    @SuppressLint("SetJavaScriptEnabled")
+    @SuppressLint("SetJavaScriptEnabled", "RequiresFeature")
     private fun configureWebView() {
         webView.settings.apply {
             javaScriptEnabled = true // Taobao and the bilingual DOM engine require JavaScript.
@@ -176,6 +176,7 @@ class TaobaoBrowserActivity : AppCompatActivity() {
         webView.evaluateJavascript("window.__taoConfig=$config;\n$script", null)
     }
 
+    @SuppressLint("RequiresFeature")
     private fun onMessage(message: WebMessageCompat, origin: Uri, reply: JavaScriptReplyProxy) {
         if (!enabled || !TaobaoNavigationPolicy.canLoad(webView.url, testMode)) return
         if (!TaobaoNavigationPolicy.isTaobao(origin.toString()) &&
