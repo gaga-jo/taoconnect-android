@@ -58,6 +58,13 @@ class TranslationTextPolicyTest {
                 "raccord 903 LU importé"
             )
         )
+        assertEquals(
+            "Cette chemise est en coton",
+            TranslationTextPolicy.cleanTranslation(
+                "这件衬衫是纯棉的",
+                "Cette chemise est coton"
+            )
+        )
     }
 
     @Test
