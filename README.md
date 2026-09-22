@@ -1,87 +1,55 @@
-# TaoConnect — connecteur français pour Taobao
+# Tao Connect — Taobao en chinois + français
 
-TaoConnect n’essaie pas de remplacer Taobao. Il s’installe comme un petit
-connecteur Android : une activation ouvre l’application Taobao, puis une bulle
-flottante traduit en français le chinois visible à l’écran.
+La version **0.5** ouvre le site mobile Taobao dans une fenêtre Android dédiée. Le chinois reste intact ; une traduction française apparaît sous les blocs de texte admissibles et défile avec eux, dans la page.
 
-## Ce que fait la version 0.3
-
-- activation unique **Connecter et ouvrir Taobao** ;
-- raccourci Android **Taobao FR** dans les réglages rapides ;
-- ouverture automatique de l’application officielle Taobao ;
-- bulle flottante et déplaçable `文 / FR` ;
-- reconnaissance du chinois simplifié et traditionnel ;
-- traduction chinois → français sur le téléphone après téléchargement initial ;
-- mode fluide activé depuis la bulle, avec actualisation automatique après le défilement ;
-- priorité aux textes importants pour éviter de saturer l’écran ;
-- cartes françaises compactes avec placement anti-chevauchement et transitions douces ;
-- traduction ponctuelle également disponible depuis la notification ;
-- arrêt immédiat depuis TaoConnect, la notification ou le raccourci rapide ;
-- aucune sauvegarde des images capturées.
-
-## Pourquoi un petit composant Android reste nécessaire
-
-Android ne permet pas à un programme extérieur de modifier directement
-l’interface interne de Taobao. Le connecteur doit donc être installé sous forme
-d’un APK léger afin d’obtenir, avec l’accord de l’utilisateur, les autorisations
-de capture et d’affichage superposé. Une fois configuré, l’écran principal de
-TaoConnect ne sert presque plus : le raccourci **Taobao FR** lance le connecteur.
+**Changement par rapport à la v0.4 :** la capture d’écran et la bulle globale sont supprimées. Cette version ne traduit pas l’application officielle Taobao ni les autres applications. Elle traduit uniquement les pages HTTPS de `taobao.com` et de ses sous-domaines dans Tao Connect.
 
 ## Utilisation
 
-1. Installer puis ouvrir TaoConnect une première fois.
-2. Appuyer sur **Ajouter le raccourci “Taobao FR”**.
-3. Toucher **Connecter et ouvrir Taobao**.
-4. Autoriser l’affichage superposé et le partage d’écran Android.
-5. Attendre le message indiquant que le modèle français est prêt.
-6. Dans Taobao, toucher la bulle `文 / FR` pour activer le mode fluide.
-7. Faire défiler normalement ; la traduction s’actualise automatiquement.
-8. Toucher la bulle verte `AUTO / FR` pour arrêter ce mode.
+1. Installer l’APK puis ouvrir Tao Connect.
+2. Toucher **Ouvrir Taobao en bilingue**.
+3. Laisser télécharger les modèles Google lors de la première traduction non couverte par le glossaire.
+4. Naviguer normalement. Le bouton **中 + FR** masque ou réactive le français.
+5. Le menu permet d’actualiser, de réessayer un téléchargement ou d’effacer le cache de traduction.
 
-Pour les utilisations suivantes, ouvrir les réglages rapides du téléphone et
-toucher directement **Taobao FR**.
-
-## Sécurité
-
-- les captures restent en mémoire vive et sont supprimées après analyse ;
-- aucune capture n’est enregistrée dans la galerie ;
-- TaoConnect ne demande jamais les identifiants Taobao ni les coordonnées
-  bancaires ;
-- il faut arrêter le connecteur avant de saisir un mot de passe, un code de
-  vérification ou des informations de paiement ;
-- Android affiche une notification tant que la session de capture est active.
-
-## Construire l’APK
-
-Le projet est prêt pour trois méthodes :
-
-- compilation automatisée sous Windows avec `LANCER_COMPILATION_WINDOWS.bat` ;
-- compilation automatique grâce à `.github/workflows/build-apk.yml` ;
-- compilation locale avec Android Studio, Java 17, Gradle 8.9 et le SDK 35.
-
-Les instructions détaillées se trouvent dans `docs/OBTENIR_APK.md`.
+Les liens vers d’autres domaines sont bloqués dans cette fenêtre. Un lien HTTPS touché volontairement peut être ouvert dans un navigateur externe après confirmation, sans traduction Tao Connect.
 
 ## Architecture
 
-- `MainActivity.kt` : configuration initiale et autorisations ;
-- `TaoConnectTileService.kt` : raccourci Android **Taobao FR** ;
-- `TranslationOverlayService.kt` : capture, OCR, traduction et bulle ;
-- `TranslationOverlayView.kt` : rendu des étiquettes françaises ;
-- `.github/workflows/build-apk.yml` : contrôles et fabrication de l’APK.
+| Élément | Responsabilité |
+|---|---|
+| `MainActivity` | Accueil et ouverture du navigateur |
+| `TaobaoBrowserActivity` | Navigation, réglage bilingue, pont asynchrone limité aux origines Taobao |
+| `TaobaoNavigationPolicy` | Vérification HTTPS, hôte, port et absence d’identifiants dans l’URL |
+| `assets/tao-bilingual.js` | Analyse des nœuds texte, annotations dans le flux, contenu dynamique |
+| `BilingualTranslator` | Traduction locale Google ML Kit, file bornée, cache LRU et déduplication |
+| `TranslationTextPolicy` | Glossaire Taobao, conservation des nombres et références |
 
-Chaîne de traitement :
+AndroidX WebKit est ajouté pour un pont JavaScript asynchrone qui n’est exposé qu’aux origines autorisées. Aucune dépendance frontend, aucun compte Tao Connect et aucun backend ne sont nécessaires à cette version.
 
-`Taobao visible → capture temporaire → OCR chinois → traduction française → superposition`
+Le moteur traite progressivement les textes proches de la zone visible. Il ignore les scripts, styles, attributs, champs saisis et zones éditables. `MutationObserver` prend en compte les nouveaux contenus et les fenêtres ; `IntersectionObserver` anticipe les éléments qui approchent du champ visible. Les réponses devenues obsolètes sont rejetées. Les traductions restent en mémoire, avec au maximum 512 entrées de cache et deux opérations machine simultanées. Les annotations sont retirées proprement quand le mode est désactivé.
 
-## Limites actuelles
+## Sécurité et confidentialité
 
-- Android exige une confirmation de partage d’écran à chaque nouvelle session ;
-- seuls les éléments visibles sont traduits ;
-- les textes très petits, stylisés ou peu contrastés peuvent être mal reconnus ;
-- sur une page très chargée, TaoConnect privilégie les principaux blocs de texte ;
-- la conversion CNY → FCFA/euro et la traduction des messages vendeurs restent
-  prévues pour une version suivante.
+- Aucune permission de capture, d’accessibilité, de superposition ou de lecture d’autres applications.
+- Aucun secret ni clé API. Les textes sont traduits sur l’appareil après téléchargement des modèles Google.
+- HTTPS obligatoire, erreurs de certificats bloquées, accès `file://` et `content://` désactivé, contenu mixte interdit.
+- Le pont valide aussi l’origine, la page courante, la taille et la fréquence des demandes.
+- Le navigateur conserve les données de session nécessaires à Taobao. Taobao reçoit les données utilisées sur son site selon ses propres règles ; « traduction locale » ne signifie pas « navigation hors ligne ».
+- Les fixtures de contrôle sont uniquement dans la variante debug, dans une activité non exportée et sans option d’ouverture depuis une autre application.
 
-TaoConnect est indépendant et n’est ni affilié, ni approuvé, ni sponsorisé par
-Taobao ou Alibaba. Taobao reste responsable de la connexion, du panier et du
-paiement.
+## Limites explicites
+
+Le moteur Google local produit des traductions automatiques, complétées par un glossaire relu pour les commandes courantes. Il peut se tromper sur les descriptions complexes et les noms commerciaux. Le chinois reste la référence.
+
+Les textes dans les images, les canvas, les iframes externes et certains composants encapsulés ne sont pas traduits. Les prix, références longues et blocs contenant des URL sont volontairement laissés intacts. Le traitement est plafonné à 1 200 blocs présents pour protéger la mémoire ; les nœuds retirés de la page sont libérés.
+
+L’ajout du français agrandit certains boutons ou titres. Les mises en page très rigides de Taobao et ses changements futurs peuvent nécessiter des adaptations. La connexion, les CAPTCHA, certains liens profonds et le paiement peuvent exiger l’application officielle. **Les tests automatiques sur fixtures ne valident pas ces parcours réels.**
+
+## Compilation et validation
+
+GitHub Actions exécute les tests unitaires, Android Lint, la compilation et les tests instrumentés sur Android 13. Les tests utilisent le vrai WebView, le vrai pont et une page de contrôle locale clairement identifiée. Un test distinct télécharge les modèles Google et vérifie une traduction hors glossaire. Les captures de l’émulateur et les rapports sont publiés avec le résultat du workflow ; l’APK n’est publié que si les étapes précédentes réussissent.
+
+Java 17, Gradle 8.9 et Android SDK 35 sont nécessaires. Voir [Obtenir l’APK](docs/OBTENIR_APK.md) et [Validation](docs/TESTS_MANUELS.md).
+
+Tao Connect est indépendant de Taobao et d’Alibaba. La v0.5 est un APK de test signé avec la clé debug du build, pas une version distribuée sur le Play Store.

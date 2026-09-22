@@ -11,8 +11,8 @@ android {
         applicationId = "com.gaius.taoconnect"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.3.0"
+        versionCode = 5
+        versionName = "0.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
@@ -35,6 +35,7 @@ android {
     kotlinOptions {
         jvmTarget = "17"
     }
+    buildFeatures { buildConfig = true }
 }
 
 dependencies {
@@ -42,9 +43,14 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("com.google.android.material:material:1.12.0")
 
-    // Reconnaissance optique du chinois simplifie/traditionnel.
-    implementation("com.google.mlkit:text-recognition-chinese:16.0.1")
+    // Pont asynchrone réservé aux origines Taobao.
+    implementation("androidx.webkit:webkit:1.12.1")
 
     // Traduction chinois -> francais sur l'appareil apres telechargement des modeles.
     implementation("com.google.mlkit:translate:17.0.3")
+
+    testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core-ktx:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit-ktx:1.2.1")
 }

@@ -1,52 +1,21 @@
-# Obtenir l’APK installable
+# Obtenir Tao Connect 0.5
 
-Le projet contient une compilation GitHub Actions dans
-`.github/workflows/build-apk.yml`. Elle installe Java, Gradle et le SDK Android,
-exécute les contrôles Android puis génère l’APK de test.
+Ouvrir l’onglet **Actions** du dépôt GitHub, puis la compilation de la branche `taoconnect-v0.5-bilingual` correspondant au dernier commit. Attendre le résultat vert des tests Android. Télécharger **TaoConnect-v0.5-APK** : il contient le fichier installable `TaoConnect-v0.5-debug.apk`.
 
-## Méthode automatique sous Windows — recommandée
+Installer ce fichier sur Android 8 ou supérieur, avec Android System WebView à jour. Ouvrir Tao Connect et toucher **Ouvrir Taobao en bilingue**. Aucune autorisation de partage d’écran ni d’affichage sur d’autres applications n’est demandée.
 
-1. Décompresser entièrement `TaoConnect-v0.3-source.zip`.
-2. Ouvrir le dossier `TaoConnect-v0.3` obtenu.
-3. Double-cliquer sur `LANCER_COMPILATION_WINDOWS.bat`.
-4. Accepter l’installation de Git et/ou GitHub CLI uniquement s’ils manquent.
-5. Se connecter sur la page officielle GitHub ouverte par le script.
-6. Attendre le message vert **APK TAOCONNECT PRÊT**.
+Une compilation debug peut utiliser une signature différente de l’APK précédemment installé. Si Android refuse la mise à jour pour cette raison, désinstaller l’ancienne version avant d’installer celle-ci ; cela supprime les préférences et la session Taobao stockées dans Tao Connect.
 
-Le script crée un dépôt GitHub privé, déclenche la compilation, télécharge le
-résultat et ouvre automatiquement le dossier contenant le fichier `.apk`.
+Les modèles de traduction doivent être téléchargés une première fois. En cas d’échec réseau, ouvrir le menu puis **Actualiser / réessayer**. Les commandes du glossaire restent disponibles sans attendre ce téléchargement.
 
-## Méthode manuelle avec GitHub
+## Construire localement
 
-1. Créer un dépôt GitHub privé.
-2. Envoyer tout le contenu du dossier du projet à la racine du dépôt.
-3. Ouvrir l’onglet **Actions** du dépôt.
-4. Choisir **Construire TaoConnect APK**.
-5. Cliquer sur **Run workflow**.
-6. Après validation, télécharger l’artifact **TaoConnect-v0.3-debug.apk**.
-7. Installer `TaoConnect-v0.3-debug.apk` sur le téléphone Android.
+Avec Java 17, Gradle 8.9 et Android SDK 35 :
 
-Android peut demander d’autoriser l’installation depuis le navigateur ou le
-gestionnaire de fichiers utilisé. Cet APK est signé automatiquement avec une
-clé de développement : il convient aux essais personnels, pas encore à une
-publication sur Google Play.
+```sh
+gradle :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
+# Avec un appareil/émulateur connecté :
+gradle :app:connectedDebugAndroidTest
+```
 
-## Méthode Android Studio
-
-1. Ouvrir le dossier dans Android Studio.
-2. Attendre la synchronisation Gradle.
-3. Choisir **Build → Build APK(s)**.
-4. Récupérer `app/build/outputs/apk/debug/app-debug.apk`.
-
-## Après installation
-
-1. Ouvrir TaoConnect une première fois.
-2. Ajouter le raccourci **Taobao FR** aux réglages rapides.
-3. Appuyer sur ce raccourci pour connecter TaoConnect et ouvrir Taobao.
-4. Accepter la demande Android de partage d’écran pour la session.
-5. Dans Taobao, appuyer sur la bulle `文 / FR` pour activer la traduction fluide.
-6. Appuyer sur la bulle verte `AUTO / FR` pour l’arrêter.
-
-Android exige une nouvelle confirmation de partage d’écran après chaque arrêt
-du connecteur ou redémarrage du téléphone. Cette protection ne peut pas être
-supprimée par une application normale.
+L’APK local est dans `app/build/outputs/apk/debug/app-debug.apk`. Le script Windows existant permet aussi de lancer et récupérer une compilation GitHub ; il demande une connexion GitHub officielle, jamais le mot de passe dans un fichier.

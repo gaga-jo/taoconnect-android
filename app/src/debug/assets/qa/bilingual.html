@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tao Connect — page de contrôle</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f6f5f2;color:#242b29;font:16px system-ui,sans-serif}header{padding:18px 20px;background:#fff;border-bottom:1px solid #ddd}header small{display:block;color:#666;font-size:11px;margin-bottom:16px}h1{font-size:23px;margin:0}main{padding:16px}nav{display:flex;gap:12px;padding-top:16px}nav button{flex:1}button{border:0;border-radius:12px;padding:12px;color:#253b33;background:#e7f1ea;font-size:15px}section{background:#fff;border-radius:16px;padding:18px;margin-bottom:16px}h2{margin:0 0 14px;font-size:19px}p{line-height:1.55}.swatches{display:flex;gap:10px}.swatches button{min-width:95px;border:1px solid #b9cfc2}.product-art{height:120px;border-radius:10px;background:linear-gradient(145deg,#e0e8df,#f1e9da);display:grid;place-items:center;font-size:52px}.price{font-size:25px;font-weight:700;color:#d95726;margin:14px 0}.ref{font-size:12px;color:#667}.buy{display:flex;align-items:center;justify-content:center;background:#e95e26;color:white;width:100%;height:44px;gap:3px}.row{display:flex;gap:10px}.row>div{flex:1;min-width:0}.muted{color:#77837c;font-size:12px}.spacer{height:160px}.fixed{height:22px;overflow:hidden;white-space:nowrap}dialog{max-width:90%;border:0;border-radius:20px;padding:24px}input{width:100%;padding:12px;border:1px solid #ccc;border-radius:8px}.nested{height:160px;overflow:auto;border:1px solid #ddd;padding:12px}.card{padding:10px 0;border-bottom:1px solid #eee}
+</style></head><body>
+<header><small translate="no">PAGE DE CONTRÔLE · Ce contenu n’est pas le site Taobao</small><h1 id="title">商品详情</h1><nav><button>首页</button><button>购物车</button><button>我的淘宝</button></nav></header>
+<main>
+<section><div class="product-art" translate="no">♧</div><p id="machine" hidden>这件衬衫是纯棉的</p><p id="material">纯棉</p><div id="price" class="price">¥ 128.50</div><p id="reference" class="ref">SKU: AB-903LU</p><h2>颜色分类</h2><div class="swatches"><button id="black">黑色</button><button>白色</button><button>蓝色</button></div><p id="shipping">包邮</p><button id="buy" class="buy" onclick="window.buyCount=(window.buyCount||0)+1"><span aria-hidden="true">＋</span>加入购物车</button></section>
+<section><h2>商品评价</h2><p id="changing">联系卖家</p><p id="fixed" class="fixed">同意协议并退出浏览模式</p><button id="modalButton" onclick="document.querySelector('dialog').showModal()">选择规格</button></section>
+<section><h2>收货地址</h2><input id="phone" value="用户输入不应该被翻译" aria-label="Numéro de téléphone"><p translate="no" id="excluded">不要翻译这段文字</p><p class="muted" translate="no">Les prix, références et champs saisis restent intacts.</p></section>
+<section><h2>更多</h2><div class="nested" id="nested"><p>消息</p><div style="height:180px"></div><p id="nestedTarget">退款</p></div></section>
+<div class="spacer"></div><section id="lazy"><h2>配送</h2><p>七天无理由退货</p><p id="last">确认收货</p></section>
+<dialog><h2>选择规格</h2><p>尺码</p><p>均码</p><button onclick="this.closest('dialog').close()">确定</button></dialog>
+</main></body></html>
